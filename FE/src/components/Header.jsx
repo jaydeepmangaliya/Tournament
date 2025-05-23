@@ -1,5 +1,5 @@
 // src/components/Header.js
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom'; // Import Link for navigation
 
@@ -15,6 +15,10 @@ const navVariants = {
 };
 
 const Header = () => {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navLinks = ['Home', 'Tournaments', 'Your Matches', 'Login'];
+
   return (
     <header className="bg-gray-900 text-white p-4 shadow-md fixed w-full z-50">
       <div className="flex justify-between items-center max-w-screen-xl mx-auto">
@@ -28,10 +32,33 @@ const Header = () => {
           GameArena
         </motion.h2>
 
-        {/* Navigation */}
-        <nav>
+        {/* Hamburger for mobile */}
+        <button
+          className="md:hidden flex flex-col justify-center items-center focus:outline-none"
+          onClick={() => setMobileOpen((prev) => !prev)}
+          aria-label="Toggle navigation"
+        >
+          <span
+            className={`block w-6 h-0.5 bg-white mb-1 transition-all duration-300 ${
+              mobileOpen ? 'rotate-45 translate-y-1.5' : ''
+            }`}
+          ></span>
+          <span
+            className={`block w-6 h-0.5 bg-white mb-1 transition-all duration-300 ${
+              mobileOpen ? 'opacity-0' : ''
+            }`}
+          ></span>
+          <span
+            className={`block w-6 h-0.5 bg-white transition-all duration-300 ${
+              mobileOpen ? '-rotate-45 -translate-y-1.5' : ''
+            }`}
+          ></span>
+        </button>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden md:block">
           <ul className="flex space-x-6">
-            {['Home', 'Tournaments', 'Profile', 'Login'].map((label, index) => (
+            {navLinks.map((label, index) => (
               <motion.li
                 key={label}
                 custom={index}
@@ -41,7 +68,13 @@ const Header = () => {
                 whileHover={{ scale: 1.08 }}
               >
                 <Link
-                  to={label.toLowerCase() === 'home' ? '/' : `/${label.toLowerCase()}`}
+                  to={
+                    label.toLowerCase() === 'home'
+                      ? '/'
+                      : label.toLowerCase() === 'your matches'
+                      ? '/yourmatches'
+                      : `/${label.toLowerCase()}`
+                  }
                   className="hover:text-green-500 relative group"
                 >
                   {label}
@@ -52,6 +85,31 @@ const Header = () => {
           </ul>
         </nav>
       </div>
+
+      {/* Mobile Navigation */}
+      {mobileOpen && (
+        <nav className="md:hidden bg-gray-900 w-full absolute left-0 top-full shadow-lg z-50">
+          <ul className="flex flex-col items-center py-4 space-y-4">
+            {navLinks.map((label, index) => (
+              <li key={label}>
+                <Link
+                  to={
+                    label.toLowerCase() === 'home'
+                      ? '/'
+                      : label.toLowerCase() === 'your matches'
+                      ? '/yourmatches'
+                      : `/${label.toLowerCase()}`
+                  }
+                  className="text-lg hover:text-green-500"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </header>
   );
 };

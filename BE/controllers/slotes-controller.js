@@ -1,36 +1,56 @@
 const slotesService = require("../services/slotes-service");
-const db  = require("../connection");
+const db = require("../connection");
 
-exports.newSlote = async(req,res,next)=>{ 
-     try{ 
-         
-            const query = ` SELECT * from slotes where isfull =0 limit 1;`
-            const [rows] = await db.promise().query(query);
+const MAX_PLAYERS_PER_SLOT = 48;
 
-            const query1 = `SELECT count(slotId) as totalPlayer from players where slotId = ${rows[0].id}`;
-            const [rows1] = await db.promise().query(query1);
-           
-            console.log(rows);
-            
-            
-          if(rows1[0].totalPlayer >= 10){
-            const update = `UPDATE slotes SET isfull = 1 where id = ${rows[0].id}`;
-            await db.promise().query(update);
+exports.newSlote = async (req, res, next) => {
+  try {
+    const [openSlots] = await db.promise().query(`
+      SELECT s.id FROM slotes s
+      LEFT JOIN players p ON s.id = p.slotId
+      WHERE s.isfull = 0
+      GROUP BY s.id
+      HAVING COUNT(p.id) < ?
+      LIMIT 1;
+    `, [MAX_PLAYERS_PER_SLOT]);
 
-            const query2 =` SELECT * from slotes where isfull =0 limit 1;`
-            const [rows2] = await db.promise().query(query2);   
+    let slotId;
 
-            const Playerquery = `INSERT INTO players (slotId, name, phone, ffId) VALUES (${rows2[0].id}, '${req.body.name}', '${req.body.phone}', '${req.body.ffId}')`;
-            await db.promise().query(Playerquery);
-
-          }   
-          
-          const Playerquery = `INSERT INTO players (slotId, name, phone, ffId) VALUES (${rows[0].id}, '${req.body.name}', '${req.body.phone}', '${req.body.ffId}')`;
-          await db.promise().query(Playerquery);
-          res.send({status:true});
-            
-    }catch(error){ 
-          console.log(error);
-          next(error);  
-     } 
+    if (openSlots.length > 0) {
+      
+      slotId = openSlots[0].id;
+    } else {
+     
+      const [newSlot] = await db.promise().query(
+        `INSERT INTO slotes (slotId) VALUES (?)`,
+        [Date.now()]
+      );
+      slotId = newSlot.insertId;
     }
+
+    // ✅ Insert player safely using placeholders
+    await db.promise().query(
+      `INSERT INTO players (slotId, name, phone, ffId) VALUES (?, ?, ?, ?)`,
+      [slotId, req.body.name, req.body.phone, req.body.ffId]
+    );
+
+    // ✅ Check player count and mark slot full if needed
+    const [[{ totalPlayers }]] = await db.promise().query(
+      `SELECT COUNT(*) as totalPlayers FROM players WHERE slotId = ?`,
+      [slotId]
+    );
+
+    if (totalPlayers >= MAX_PLAYERS_PER_SLOT) {
+      await db.promise().query(
+        `UPDATE slotes SET isfull = 1 WHERE id = ?`,
+        [slotId]
+      );
+    }
+
+    res.status(200).json({ status: true, message: "Player assigned to slot successfully", slotId });
+
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
