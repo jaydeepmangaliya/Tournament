@@ -14,6 +14,7 @@ const App = () => {
   return (
     <div className="bg-gradient-to-br">
       <Header />
+      
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path='/yourmatches' element={<PlayerMatches></PlayerMatches>}></Route>

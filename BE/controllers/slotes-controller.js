@@ -5,8 +5,7 @@ const MAX_PLAYERS_PER_SLOT = 48;
 exports.newSlote = async (req, res, next) => {
   try {
     // Get the authenticated user from req.user
-    console.log("ertyuiop",req.user);
-    
+
     const userId = req.user?.email;
     
     if (!userId) {
@@ -44,12 +43,14 @@ exports.newSlote = async (req, res, next) => {
       // console.log("user",getuser[0][0].id)
       const id =getuser[0][0].id
       console.log("iddddd------------------->",id);
+       
+      console.log(req.body);
       
       
     // Register player with slot and userId
     await db.promise().query(
       `INSERT INTO players (slotId, userId, name, phone, ffId) VALUES (?, ?, ?, ?, ?)`,
-      [slotId, getuser[0][0].id, req.body.name, req.body.phone, req.body.ffId]
+      [slotId, getuser[0][0].id, req.body.userName, req.body.phoneNumber, req.body.ffId]
     );
 
     // Check if slot is now full

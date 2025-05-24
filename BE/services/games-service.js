@@ -5,7 +5,7 @@ gameService.games =async()=>{
     try{ 
         const query = `SELECT * FROM games`;
         const [rows] = await db.promise().query(query);
-        console.log(rows);
+        return {status :true , data:rows}
 
     }catch(error){ 
         console.error(error);
