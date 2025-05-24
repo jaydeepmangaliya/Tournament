@@ -62,14 +62,30 @@ export default function TournamentsPage() {
     };
 
     // Send data as { key: value } to backend
-    try {
-      const response = await axios.post('http://localhost:2000/api/slotes', playerDetails);
-        console.log(response);
-        
-           
-    } catch (err) {
-      console.error('Failed to send player data:', err);
+   try {
+  const token = localStorage.getItem('token'); // or sessionStorage.getItem
+
+  if (!token) {
+    window.location.href = '/login'; // Redirect to login page if token not found
+    return;
+  }
+
+  const response = await axios.post(
+    'http://localhost:2000/api/slotes',
+    playerDetails,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
     }
+  );
+
+  console.log(response);
+
+} catch (err) {
+  console.error('Failed to send player data:', err);
+}
+
 
     setShowRegistration(false);
     setSelectedTournament(null);

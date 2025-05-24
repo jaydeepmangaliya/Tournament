@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // assumes React Router is used
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 export default function PlayerSlots() {
@@ -12,11 +12,9 @@ export default function PlayerSlots() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-
     if (!token) {
-      navigate('/login'); // Redirect if token not found
+      navigate('/login');
     } else {
-      // Fetch data if token exists
       fetchPlayerSlots(token);
     }
   }, []);
@@ -28,7 +26,21 @@ export default function PlayerSlots() {
           Authorization: `Bearer ${token}`
         }
       });
-      setSlots(res.data.slots); // Assuming API returns { slots: [...] }
+
+      const formattedSlots = res.data.data.map(slot => ({
+        ...slot,
+        game: slot.game || 'Free Fire',
+        startDate: 'TBD',
+        startTime: 'TBD',
+        entryFee: 'N/A',
+        prizePool: 'N/A',
+        gameId: slot.gameId || null,
+        gamePass: slot.gamePass || null,
+        status: slot.iscomplated === 'completed' ? 'completed' : 'pending',
+        isFull: slot.isfull === 1
+      }));
+
+      setSlots(formattedSlots);
     } catch (error) {
       console.error('Error fetching player slots:', error);
       if (error.response?.status === 401) {
@@ -87,28 +99,16 @@ export default function PlayerSlots() {
                   </>
                 ) : (
                   <p className="mt-2 text-yellow-400 italic">
-                    Game ID and Password will be assigned soon.
+                    <strong>Game ID Status:</strong> Assigned Soon
                   </p>
                 )}
 
-                {slot.status === 'pending' && !slot.isFull && (
-                  <button
-                    className="mt-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 transition"
-                    onClick={() => handlePaymentClick(slot)}
-                  >
-                    Pay & Confirm
-                  </button>
-                )}
-                {slot.isFull && slot.status === 'pending' && (
-                  <p className="mt-4 text-red-500 font-bold">Slot Full - Cannot Register</p>
-                )}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Payment Modal */}
       {showPayment && selectedSlot && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96 text-black">
