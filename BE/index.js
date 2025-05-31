@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
+app.use(express.static(path.join(__dirname, "FE/dist")));
 require('./routes/slotes-route')(app);
 require('./routes/auth-route')(app);
 require('./routes/user-route')(app)
