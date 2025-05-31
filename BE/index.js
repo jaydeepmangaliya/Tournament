@@ -13,5 +13,6 @@ require('./routes/slotes-route')(app);
 require('./routes/auth-route')(app);
 require('./routes/user-route')(app)
 require('./routes/games-route')(app)
+require('./routes/payment-route')(app)
 
 app.listen(2000,()=>{console.log("server is running on port 2000")});

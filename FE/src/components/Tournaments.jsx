@@ -12,6 +12,8 @@ export default function TournamentsPage() {
     phoneNumber: '',
     ffId: '',
   });
+  const [paymentDone, setPaymentDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const navigate = useNavigate();
 
@@ -51,13 +53,26 @@ export default function TournamentsPage() {
     }));
   };
 
+  const handlePay = () => {
+    // Simulate payment gateway logic
+    setPaymentDone(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!paymentDone) {
+      alert('Please complete the payment first!');
+      return;
+    }
+
+    setSubmitting(true);
 
     const token = localStorage.getItem('token');
     if (!token) {
       alert('You need to login first!');
       navigate('/login');
+      setSubmitting(false);
       return;
     }
      console.log(selectedGame);
@@ -71,7 +86,6 @@ export default function TournamentsPage() {
         entryFee: selectedGame.entryFee,
         playerSize: selectedGame.playerSize,
         prizePool: selectedGame.prizePool,
-
       };
 
       await axios.post('http://localhost:2000/api/slotes', postData, {
@@ -90,11 +104,9 @@ export default function TournamentsPage() {
       } else {
         alert('Registration failed: ' + (error.response?.data?.message || error.message));
       }
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const handlePay = () => {
-    alert('Payment gateway logic goes here');
   };
 
   const gameList = Object.keys(games);
@@ -198,12 +210,17 @@ export default function TournamentsPage() {
                       className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
                     />
                   </div>
-                  <div className="flex justify-between items-center mt-6">
+                  <div className="flex justify-between items-center mt-6 flex-wrap gap-2">
                     <button
                       type="submit"
-                      className="bg-green-600 hover:bg-green-700 transition-colors px-5 py-2 rounded font-semibold"
+                      className={`px-5 py-2 rounded font-semibold transition-colors
+                        ${!paymentDone || submitting
+                          ? 'bg-green-300 text-gray-400 cursor-not-allowed'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                        }`}
+                      disabled={!paymentDone || submitting}
                     >
-                      Submit
+                      {submitting ? 'Submitting...' : 'Submit'}
                     </button>
                     <button
                       type="button"
@@ -212,13 +229,17 @@ export default function TournamentsPage() {
                     >
                       Cancel
                     </button>
-                    <button
-                      type="button"
-                      onClick={handlePay}
-                      className="bg-yellow-600 hover:bg-yellow-700 transition-colors px-5 py-2 rounded font-semibold"
-                    >
-                      Pay
-                    </button>
+                    {!paymentDone ? (
+                      <button
+                        type="button"
+                        onClick={handlePay}
+                        className="bg-yellow-600 hover:bg-yellow-700 transition-colors px-5 py-2 rounded font-semibold"
+                      >
+                        Pay
+                      </button>
+                    ) : (
+                      <span className="text-green-400 font-semibold ml-2">Payment Done ✅</span>
+                    )}
                   </div>
                 </form>
               </motion.div>

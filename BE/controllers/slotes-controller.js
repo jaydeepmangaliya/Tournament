@@ -5,11 +5,16 @@ const MAX_PLAYERS_PER_SLOT = 4;
 exports.newSlote = async (req, res, next) => {
   try {
     // Get the authenticated user from req.user
-
     const userId = req.user?.email;
-    
     if (!userId) {
       return res.status(401).json({ status: false, message: "Unauthorized: Please log in." });
+    }
+
+    
+    // Call your Razorpay verification function here (should return true/false)
+    const paymentVerified = await verifyRazorpayPayment(razorpay_payment_id);
+    if (!paymentVerified) {
+      return res.status(402).json({ status: false, message: "Payment not verified." });
     }
 
     // Find an open slot with less than MAX_PLAYERS_PER_SLOT players
@@ -140,4 +145,11 @@ exports.updateSlote = async (req, res, next) => {
     console.error("Error in updateSlote controller:", error);
     res.status(500).json({ status: false, message: "Something went wrong while updating slot." });
   }
+}
+
+// Dummy Razorpay verification function (replace with your real implementation)
+async function verifyRazorpayPayment(paymentId) {
+  // TODO: Implement actual Razorpay payment verification here
+  // For now, always return true for demo
+  return true;
 }
