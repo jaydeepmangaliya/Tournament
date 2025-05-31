@@ -1,6 +1,6 @@
 const db = require("../connection");
 
-const MAX_PLAYERS_PER_SLOT = 2;
+const MAX_PLAYERS_PER_SLOT = 4;
 
 exports.newSlote = async (req, res, next) => {
   try {
@@ -113,7 +113,7 @@ exports.getAllslote = async (req, res, next) => {
     const [rows] = await db.promise().query(
       `SELECT * FROM slotes WHERE iscomplated = 'pending' AND isfull = 1`
     );
-   
+  
 
     res.status(200).json({ status: true, data: { rows: rows, total: total[0] } });
   } catch (error) {
@@ -125,18 +125,15 @@ exports.getAllslote = async (req, res, next) => {
 
 exports.updateSlote = async (req, res, next) => { 
   try { 
-    console.log("updateSlote API called");
-    console.log(req.body);
-
     const { sloteId, customeId, customePassword, startedAt } = req.body;
     if (!sloteId) {
       return res.status(400).json({ status: false, message: "Missing sloteId." });
     }
-
-    await db.promise().query(
-      `UPDATE slotes SET customeId = ?, customePassword = ?, startedAt = ? WHERE slotId = ?`,
-      [customeId, customePassword, startedAt, sloteId]
-    );
+  console.log(req.bo);
+      // await db.promise().query(
+    //   `UPDATE slotes SET customeId = ?, customePassword = ?, startedAt = ? WHERE slotId = ?`,
+    //   [customeId, customePassword, startedAt, sloteId]
+    // );
 
     res.status(200).json({ status: true, message: "Slot updated successfully." });
   } catch(error) {
