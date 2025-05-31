@@ -8,6 +8,10 @@ export default function PlayerSlots() {
   const [showPayment, setShowPayment] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
+
+  console.log(slots);
+  
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,8 +42,12 @@ export default function PlayerSlots() {
         gamePass: slot.gamePass || null,
         status: slot.iscomplated === 'completed' ? 'completed' : 'pending',
         isFull: slot.isfull === 1
+        
+
       }));
 
+
+      
       setSlots(formattedSlots);
     } catch (error) {
       console.error('Error fetching player slots:', error);
@@ -51,10 +59,7 @@ export default function PlayerSlots() {
     }
   };
 
-  const handlePaymentClick = (slot) => {
-    setSelectedSlot(slot);
-    setShowPayment(true);
-  };
+ 
 
   const handleClose = () => {
     setSelectedSlot(null);
@@ -78,6 +83,9 @@ export default function PlayerSlots() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {slots.map((slot) => (
+
+             
+              
               <div
                 key={slot.slotId}
                 className={`relative bg-gray-900 rounded-xl overflow-hidden shadow-md p-4 flex flex-col justify-between
@@ -91,10 +99,10 @@ export default function PlayerSlots() {
                 <p><strong>Entry Fee:</strong> {slot.entryFee}</p>
                 <p><strong>Prize Pool:</strong> {slot.prizePool}</p>
 
-                {slot.gameId && slot.gamePass ? (
+                {slot.customeId && slot.customePassword ? (
                   <>
-                    <p className="mt-2 text-green-400 font-semibold">Game ID: {slot.gameId}</p>
-                    <p className="text-green-400 font-semibold">Password: {slot.gamePass}</p>
+                    <p className="mt-2 text-green-400 font-semibold">Game ID: {slot.customeId}</p>
+                    <p className="text-green-400 font-semibold">Password: {slot.customePassword}</p>
                     <p className="text-sm mt-1 italic">Use these credentials to join your match.</p>
                   </>
                 ) : (

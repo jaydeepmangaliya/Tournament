@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function TournamentsPage() {
   const [games, setGames] = useState({});
@@ -59,13 +60,18 @@ export default function TournamentsPage() {
       navigate('/login');
       return;
     }
-
+     console.log(selectedGame);
+     
     try {
       const postData = {
         userName: formData.userName,
         phoneNumber: formData.phoneNumber,
         ffId: formData.ffId,
         tournamentId: selectedGame.id || selectedGame._id,
+        entryFee: selectedGame.entryFee,
+        playerSize: selectedGame.playerSize,
+        prizePool: selectedGame.prizePool,
+
       };
 
       await axios.post('http://localhost:2000/api/slotes', postData, {
@@ -108,9 +114,12 @@ export default function TournamentsPage() {
               <h2 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2">{game}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {games[game].map((item, index) => (
-                  <div
+                  <motion.div
                     key={index}
                     className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.1 }}
                   >
                     <img
                       src={item.gameImageUrl || 'https://via.placeholder.com/400x200'}
@@ -129,7 +138,7 @@ export default function TournamentsPage() {
                         Register
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
@@ -137,72 +146,85 @@ export default function TournamentsPage() {
         )}
 
         {/* Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50">
-            <div className="bg-[#1a1a1a] p-6 rounded-lg max-w-md w-full relative">
-              <h3 className="text-xl font-semibold mb-4 text-white">Register for {selectedGame.name}</h3>
-              <form onSubmit={handleSubmit} className="space-y-4 text-white">
-                <div>
-                  <label className="block mb-1 font-medium">User Name</label>
-                  <input
-                    type="text"
-                    name="userName"
-                    value={formData.userName}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1 font-medium">Phone Number</label>
-                  <input
-                    type="tel"
-                    name="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={handleChange}
-                    required
-                    pattern="[0-9]{10}"
-                    placeholder="10 digit number"
-                    className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1 font-medium">Free Fire ID</label>
-                  <input
-                    type="text"
-                    name="ffId"
-                    value={formData.ffId}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-6">
-                  <button
-                    type="submit"
-                    className="bg-green-600 hover:bg-green-700 transition-colors px-5 py-2 rounded font-semibold"
-                  >
-                    Submit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="bg-gray-700 hover:bg-gray-800 transition-colors px-5 py-2 rounded font-semibold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePay}
-                    className="bg-yellow-600 hover:bg-yellow-700 transition-colors px-5 py-2 rounded font-semibold"
-                  >
-                    Pay
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {showModal && (
+            <motion.div
+              className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="bg-[#1a1a1a] p-6 rounded-lg max-w-md w-full relative"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              >
+                <h3 className="text-xl font-semibold mb-4 text-white">Register for {selectedGame.name}</h3>
+                <form onSubmit={handleSubmit} className="space-y-4 text-white">
+                  <div>
+                    <label className="block mb-1 font-medium">User Name</label>
+                    <input
+                      type="text"
+                      name="userName"
+                      value={formData.userName}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1 font-medium">Phone Number</label>
+                    <input
+                      type="tel"
+                      name="phoneNumber"
+                      value={formData.phoneNumber}
+                      onChange={handleChange}
+                      required
+                      pattern="[0-9]{10}"
+                      placeholder="10 digit number"
+                      className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1 font-medium">Free Fire ID</label>
+                    <input
+                      type="text"
+                      name="ffId"
+                      value={formData.ffId}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="flex justify-between items-center mt-6">
+                    <button
+                      type="submit"
+                      className="bg-green-600 hover:bg-green-700 transition-colors px-5 py-2 rounded font-semibold"
+                    >
+                      Submit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="bg-gray-700 hover:bg-gray-800 transition-colors px-5 py-2 rounded font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePay}
+                      className="bg-yellow-600 hover:bg-yellow-700 transition-colors px-5 py-2 rounded font-semibold"
+                    >
+                      Pay
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
