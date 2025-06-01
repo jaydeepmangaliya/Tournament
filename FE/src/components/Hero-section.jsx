@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 const HeroSection = () => {
   const [videoError, setVideoError] = useState(false);
-
+  const [videoLoaded, setVideoLoaded] = useState(false);
 
   // Gradient colors for the design system
   const primaryGradient = 'linear-gradient(135deg, #2563eb 0%, #7c3aed 50%, #9333ea 100%)';
