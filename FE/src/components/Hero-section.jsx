@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 
-
-import imgSrc from "../assets/image.png";
 const HeroSection = () => {
   const [videoError, setVideoError] = useState(false);
 
@@ -103,7 +101,7 @@ const HeroSection = () => {
           />
         ) : (
           <img
-            src={imgSrc}
+            src={"imgSrc"}
             alt="fallback"
             className="w-full h-full object-cover"
           />
