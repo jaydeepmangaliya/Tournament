@@ -1,7 +1,6 @@
-// src/components/Header.js
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom'; // Import Link for navigation
+import { Link } from 'react-router-dom';
 
 const navVariants = {
   hidden: { opacity: 0, y: -20 },
@@ -20,44 +19,55 @@ const Header = () => {
   const navLinks = ['Home', 'Tournaments', 'Your Matches', 'Login'];
 
   return (
-    <header className="bg-gray-900 text-white p-4 shadow-md fixed w-full z-50">
-      <div className="flex justify-between items-center max-w-screen-xl mx-auto">
+    <header
+      className="fixed w-full z-50 p-4  text-white shadow-md"
+    style={{
+      backgroundColor: "rgba(255, 255, 255, 0.1)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+      borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+    }}
+    >
+      <div className="flex justify-between items-center max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Logo with animation */}
-        <motion.h2
-          className="text-2xl font-bold"
+        <motion.div
           initial={{ opacity: 0, x: -100 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
+          className="flex items-center"
         >
-          GameArena
-        </motion.h2>
+          <motion.h2
+            className="text-2xl sm:text-3xl font-bold"
+            whileHover={{ scale: 1.05 }}
+          >
+            GameArena
+          </motion.h2>
+        </motion.div>
 
         {/* Hamburger for mobile */}
         <button
-          className="md:hidden flex flex-col justify-center items-center focus:outline-none"
+          className="md:hidden flex flex-col justify-center items-center focus:outline-none p-2"
           onClick={() => setMobileOpen((prev) => !prev)}
           aria-label="Toggle navigation"
+          aria-expanded={mobileOpen}
         >
           <span
-            className={`block w-6 h-0.5 bg-white mb-1 transition-all duration-300 ${
-              mobileOpen ? 'rotate-45 translate-y-1.5' : ''
-            }`}
+            className={`block w-6 h-0.5 bg-white mb-1.5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-2' : ''
+              }`}
           ></span>
           <span
-            className={`block w-6 h-0.5 bg-white mb-1 transition-all duration-300 ${
-              mobileOpen ? 'opacity-0' : ''
-            }`}
+            className={`block w-6 h-0.5 bg-white mb-1.5 transition-all duration-300 ${mobileOpen ? 'opacity-0' : ''
+              }`}
           ></span>
           <span
-            className={`block w-6 h-0.5 bg-white transition-all duration-300 ${
-              mobileOpen ? '-rotate-45 -translate-y-1.5' : ''
-            }`}
+            className={`block w-6 h-0.5 bg-white transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-2' : ''
+              }`}
           ></span>
         </button>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:block">
-          <ul className="flex space-x-6">
+          <ul className="flex space-x-4 lg:space-x-6">
             {navLinks.map((label, index) => (
               <motion.li
                 key={label}
@@ -65,17 +75,17 @@ const Header = () => {
                 initial="hidden"
                 animate="visible"
                 variants={navVariants}
-                whileHover={{ scale: 1.08 }}
+                whileHover={{ scale: 1.05 }}
               >
                 <Link
                   to={
                     label.toLowerCase() === 'home'
                       ? '/'
                       : label.toLowerCase() === 'your matches'
-                      ? '/yourmatches'
-                      : `/${label.toLowerCase()}`
+                        ? '/yourmatches'
+                        : `/${label.toLowerCase()}`
                   }
-                  className="hover:text-green-500 relative group"
+                  className="hover:text-green-500 relative group px-2 py-1 text-sm sm:text-base"
                 >
                   {label}
                   <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-green-500 transition-all duration-300 group-hover:w-full"></span>
@@ -88,27 +98,40 @@ const Header = () => {
 
       {/* Mobile Navigation */}
       {mobileOpen && (
-        <nav className="md:hidden bg-gray-900 w-full absolute left-0 top-full shadow-lg z-50">
+        <motion.nav
+          className="md:hidden bg-gray-900/95 w-full absolute left-0 top-full shadow-lg z-50"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
           <ul className="flex flex-col items-center py-4 space-y-4">
             {navLinks.map((label, index) => (
-              <li key={label}>
+              <motion.li
+                key={label}
+                custom={index}
+                initial="hidden"
+                animate="visible"
+                variants={navVariants}
+                className="w-full text-center"
+              >
                 <Link
                   to={
                     label.toLowerCase() === 'home'
                       ? '/'
                       : label.toLowerCase() === 'your matches'
-                      ? '/yourmatches'
-                      : `/${label.toLowerCase()}`
+                        ? '/yourmatches'
+                        : `/${label.toLowerCase()}`
                   }
-                  className="text-lg hover:text-green-500"
+                  className="text-lg hover:text-green-500 px-4 py-2 block w-full"
                   onClick={() => setMobileOpen(false)}
                 >
                   {label}
                 </Link>
-              </li>
+              </motion.li>
             ))}
           </ul>
-        </nav>
+        </motion.nav>
       )}
     </header>
   );

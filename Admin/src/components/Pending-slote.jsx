@@ -1,17 +1,60 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
+// Improved notification bar with icon and close button, centered and styled
+function NotificationBar({ message, type, onClose }) {
+  React.useEffect(() => {
+    const timer = setTimeout(onClose, 2000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+  return (
+    <div
+      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center justify-center gap-3 px-6 py-3 rounded-lg shadow-xl text-white text-base font-semibold transition-all
+        ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+      style={{ minWidth: 320, maxWidth: 480, letterSpacing: 1 }}
+    >
+      {type === 'success' ? (
+        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12l2 2l4-4" />
+        </svg>
+      ) : (
+        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 9l-6 6M9 9l6 6" />
+        </svg>
+      )}
+      <span className="flex-1">{message}</span>
+      <button className="ml-2 text-white text-xl font-bold focus:outline-none" onClick={onClose}>&times;</button>
+    </div>
+  );
+}
+
+// Helper to format startedAt
+function formatDateTime(dt) {
+  if (!dt) return "Not started";
+  const date = new Date(dt.replace(' ', 'T'));
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
 export default function Pendingslote() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editValues, setEditValues] = useState({});
-  const [disabledSaves, setDisabledSaves] = useState({});
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
     axios.get('http://localhost:2000/api/slotes')
       .then(res => {
         const slotData = res.data?.data?.rows; 
-        console.log(slotData);
+        console.log("this is pending slotes `",slotData);
         
         let slotList = [];
         if (Array.isArray(slotData)) {
@@ -53,8 +96,6 @@ export default function Pendingslote() {
     // Calculate startedAt as current time + 15 minutes
     const startedAt = new Date(Date.now() + 15 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
 
-    setDisabledSaves(prev => ({ ...prev, [slotId]: true }));
-
     try {
       await axios.post('http://localhost:2000/api/update-slote', {
         sloteId: slotId,
@@ -69,10 +110,9 @@ export default function Pendingslote() {
             : slot
         )
       );
-      alert('Saved successfully!');
+      setToast({ show: true, message: 'Saved successfully!', type: 'success' });
     } catch (err) {
-      alert('Failed to save!');
-      setDisabledSaves(prev => ({ ...prev, [slotId]: false }));
+      setToast({ show: true, message: 'Failed to save!', type: 'error' });
     }
   };
 
@@ -82,6 +122,13 @@ export default function Pendingslote() {
 
   return (
     <div className="p-6 bg-black text-white min-h-screen">
+      {toast.show && (
+        <NotificationBar
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
       <h2 className="text-3xl font-bold mb-6">Pending Slots</h2>
       {slots.length === 0 ? (
         <p>No pending slots found.</p>
@@ -98,7 +145,7 @@ export default function Pendingslote() {
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Customer ID</th>
                 <th className="px-4 py-2">Customer Password</th>
-                <th className="px-4 py-2">Started At</th>
+                <th className="px-4 py-2 whitespace-nowrap w-48">Started At</th>
                 <th className="px-4 py-2">Action</th>
               </tr>
             </thead>
@@ -127,12 +174,11 @@ export default function Pendingslote() {
                       onChange={e => handleInputChange(slot.slotId, 'customePassword', e.target.value)}
                     />
                   </td>
-                  <td className="px-4 py-2">{slot.startedAt || "Not started"}</td>
+                  <td className="px-4 py-2 whitespace-nowrap w-48">{formatDateTime(slot.startedAt)}</td>
                   <td className="px-4 py-2">
                     <button
                       className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
                       onClick={() => handleSave(slot.slotId)}
-                      disabled={!!disabledSaves[slot.slotId]}
                     >
                       Save
                     </button>

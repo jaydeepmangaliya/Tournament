@@ -29,7 +29,8 @@ authService.login = async (body) => {
       const user = rows[0];
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        throw new Error("Incorrect password.");
+        // Instead of throwing, return a status for frontend toast
+        return { status: false, message: "Password not match." };
       }
 
       const token = await generateJWT(email);

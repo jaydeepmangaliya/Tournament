@@ -2,15 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+// Helper to format startedAt
+function formatDateTime(dt) {
+  if (!dt) return "TBD";
+  const date = new Date(dt.replace(' ', 'T'));
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
 export default function PlayerSlots() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
-
-  console.log(slots);
-  
 
   const navigate = useNavigate();
 
@@ -31,19 +42,15 @@ export default function PlayerSlots() {
         }
       });
 
+      // Use actual values from backend, fallback only if missing
       const formattedSlots = res.data.data.map(slot => ({
         ...slot,
         game: slot.game || 'Free Fire',
-        startDate: 'TBD',
-        startTime: 'TBD',
-        entryFee: 'N/A',
-        prizePool: 'N/A',
-        gameId: slot.gameId || null,
-        gamePass: slot.gamePass || null,
+        startDate: slot.startedAt ? formatDateTime(slot.startedAt) : 'TBD',
+        entryFee: slot.entryFee !== undefined ? `₹${slot.entryFee}` : 'N/A',
+        prizePool: slot.prizePool !== undefined ? `₹${slot.prizePool}` : 'N/A',
         status: slot.iscomplated === 'completed' ? 'completed' : 'pending',
         isFull: slot.isfull === 1
-        
-
       }));
 
 
@@ -95,7 +102,7 @@ export default function PlayerSlots() {
                 <h3 className="text-xl font-semibold mb-2">{slot.game}</h3>
                 <p><strong>Slot ID:</strong> {slot.slotId}</p>
                 <p><strong>Status:</strong> {slot.status}</p>
-                <p><strong>Start:</strong> {slot.startDate} — {slot.startTime}</p>
+                <p><strong>Start:</strong> {slot.startDate}</p>
                 <p><strong>Entry Fee:</strong> {slot.entryFee}</p>
                 <p><strong>Prize Pool:</strong> {slot.prizePool}</p>
 

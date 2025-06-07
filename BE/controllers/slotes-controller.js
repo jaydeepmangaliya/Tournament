@@ -12,10 +12,10 @@ exports.newSlote = async (req, res, next) => {
 
     
     // Call your Razorpay verification function here (should return true/false)
-    const paymentVerified = await verifyRazorpayPayment(razorpay_payment_id);
-    if (!paymentVerified) {
-      return res.status(402).json({ status: false, message: "Payment not verified." });
-    }
+    // const paymentVerified = await verifyRazorpayPayment(razorpay_payment_id);
+    // if (!paymentVerified) {
+    //   return res.status(402).json({ status: false, message: "Payment not verified." });
+    // }
 
     // Find an open slot with less than MAX_PLAYERS_PER_SLOT players
     const [openSlots] = await db.promise().query(
@@ -118,6 +118,7 @@ exports.getAllslote = async (req, res, next) => {
     const [rows] = await db.promise().query(
       `SELECT * FROM slotes WHERE iscomplated = 'pending' AND isfull = 1`
     );
+  console.log("rows",rows);
   
 
     res.status(200).json({ status: true, data: { rows: rows, total: total[0] } });
@@ -134,11 +135,12 @@ exports.updateSlote = async (req, res, next) => {
     if (!sloteId) {
       return res.status(400).json({ status: false, message: "Missing sloteId." });
     }
-  console.log(req.bo);
-      // await db.promise().query(
-    //   `UPDATE slotes SET customeId = ?, customePassword = ?, startedAt = ? WHERE slotId = ?`,
-    //   [customeId, customePassword, startedAt, sloteId]
-    // );
+  console.log("updateSlote request body:", req.body);
+  
+      await db.promise().query(
+      `UPDATE slotes SET customeId = ?, customePassword = ?, startedAt = ? WHERE slotId = ?`,
+      [customeId, customePassword, startedAt, sloteId]
+    );
 
     res.status(200).json({ status: true, message: "Slot updated successfully." });
   } catch(error) {
