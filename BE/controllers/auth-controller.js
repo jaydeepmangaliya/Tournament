@@ -6,13 +6,13 @@ exports.login=async(req,res,next)=>{
 
     const result = await authService.login(req.body);
      
-    const {status,token} = result;
+    const {status,token,message} = result;
     
     if(!status){ 
-        throw new Error('Login failed. Try again.'); 
+        throw new Error(message); 
     }
     else{ 
-        res.send({status:true,token:token})
+        res.send({status:true,token:token,message:message})
     }
     
     }catch(error){ 

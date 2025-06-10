@@ -3,7 +3,7 @@ module.exports = app =>{
 
 const router = require('express').Router();
  
-router.post("/create-order",paymentController.createOrder);
+router.get("/start-payment",paymentController.createOrder);
 app.use('/api', router);
 
 }

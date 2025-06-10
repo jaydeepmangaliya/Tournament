@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
+
 export default function TournamentsPage() {
   const [games, setGames] = useState({});
   const [selectedGame, setSelectedGame] = useState(null);
@@ -20,7 +21,7 @@ export default function TournamentsPage() {
   useEffect(() => {
     const fetchGames = async () => {
       try {
-        const response = await axios.get(`http://localhost:2000/api/games`);
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/games`);
         const grouped = response.data.reduce((acc, item) => {
           if (!acc[item.gameName]) acc[item.gameName] = [];
           acc[item.gameName].push(item);
@@ -53,9 +54,13 @@ export default function TournamentsPage() {
     }));
   };
 
+
+  
+
   const handlePay = () => {
-    // Simulate payment gateway logic
-    setPaymentDone(true);
+
+  setPaymentDone(true);
+  
   };
 
   const handleSubmit = async (e) => {
@@ -88,7 +93,7 @@ export default function TournamentsPage() {
         prizePool: selectedGame.prizePool,
       };
 
-      await axios.post('http://localhost:2000/api/slotes', postData, {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/slotes`, postData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

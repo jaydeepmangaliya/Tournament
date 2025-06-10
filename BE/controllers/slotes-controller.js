@@ -44,7 +44,7 @@ exports.newSlote = async (req, res, next) => {
 
      
     console.log(req.body);
-      const query = `INSERT INTO slotes(slotId,gameId,entryFee,prizePool,customeId,customePassword,startedAt) VALUES (?,?,?,?,?,?,?)`;
+      const query = `INSERT INTO slotes(sloteId,gameId,entryFee,prizePool,customeId,customePassword,startAt) VALUES (?,?,?,?,?,?,?)`;
       const [newSlot] =await db.promise().execute(query, [
         Date.now(),
         req.body.tournamentId,
@@ -131,15 +131,16 @@ exports.getAllslote = async (req, res, next) => {
 
 exports.updateSlote = async (req, res, next) => { 
   try { 
-    const { sloteId, customeId, customePassword, startedAt } = req.body;
+    const { sloteId, customeId, customePassword, startAt } = req.body;
+    console.log(sloteId);
     if (!sloteId) {
       return res.status(400).json({ status: false, message: "Missing sloteId." });
     }
   console.log("updateSlote request body:", req.body);
   
       await db.promise().query(
-      `UPDATE slotes SET customeId = ?, customePassword = ?, startedAt = ? WHERE slotId = ?`,
-      [customeId, customePassword, startedAt, sloteId]
+      `UPDATE slotes SET customeId = ?, customePassword = ?, startAt = ? WHERE sloteId = ?`,
+      [customeId, customePassword, startAt, sloteId]
     );
 
     res.status(200).json({ status: true, message: "Slot updated successfully." });

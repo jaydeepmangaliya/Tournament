@@ -23,8 +23,6 @@ paymentService.createOrder = async (req) => {
         }
         return { status: true, data: order };
 
-        
-         
     }catch(error){ 
         console.error("Error in createOrder service:", error);
         throw new Error("Something went wrong while creating order.");

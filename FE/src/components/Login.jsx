@@ -29,7 +29,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:2000/auth/login', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/login`, {
         email,
         password,
       });
@@ -60,52 +60,79 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
-      <div className="max-w-md w-full bg-gray-800 p-8 rounded-lg shadow-lg text-white">
-
+    <div className="flex min-h-screen items-center justify-center bg-black px-2 sm:px-4">
+      <div className="w-full max-w-xs sm:max-w-sm bg-white rounded-2xl shadow-2xl border border-black p-4 sm:p-8 flex flex-col items-center relative">
+        {/* Gaming Logo/Avatar */}
+        <div className="mb-3 sm:mb-4 flex justify-center">
+          <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-black flex items-center justify-center shadow-lg border-2 border-white"
+            style={{ boxShadow: '0 0 16px #000, 0 0 4px #fff inset' }}>
+            <span className="text-white text-2xl sm:text-3xl font-extrabold">🎮</span>
+          </div>
+        </div>
         {isLoggedIn ? (
           <>
-            <h2 className="text-2xl font-bold mb-4 text-center">You are already logged in</h2>
+            <h2
+              className="text-lg sm:text-xl font-extrabold mb-3 sm:mb-4 text-center text-black tracking-wide"
+              style={{ fontFamily: 'Orbitron, sans-serif' }}
+            >
+              Already Logged In
+            </h2>
             <button
               onClick={handleLogout}
-              className="w-full bg-red-600 hover:bg-red-700 transition-colors py-3 rounded font-semibold text-lg"
+              className="w-full py-2 rounded bg-black hover:bg-gray-800 text-white font-semibold text-base transition-all shadow focus:outline-none focus:ring-2 focus:ring-black"
             >
               Logout
             </button>
           </>
         ) : (
           <>
-            <h2 className="text-3xl font-bold mb-6 text-center">Login to GameArena</h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <h2
+              className="text-xl sm:text-2xl font-extrabold mb-1 text-center text-black tracking-widest"
+              style={{
+                fontFamily: 'Orbitron, sans-serif',
+                textShadow: '0 0 8px #000, 0 0 2px #fff'
+              }}
+            >
+              GameArena Login
+            </h2>
+            <div className="text-xs text-gray-700 font-semibold mb-3 sm:mb-4 text-center tracking-wide">
+              Enter the Arena. Compete. Win. Repeat.
+            </div>
+            <div className="w-8 sm:w-10 border-b-2 border-black mx-auto mb-4 sm:mb-5"></div>
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 w-full">
               <div>
-                <label htmlFor="email" className="block mb-2 font-semibold">Email</label>
+                <label htmlFor="email" className="block mb-1 text-xs font-semibold text-gray-800">Email</label>
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:border-green-500"
+                  className="w-full px-3 py-2 rounded bg-gray-100 border border-black focus:outline-none focus:ring-2 focus:ring-black focus:border-black text-black transition-all text-sm"
                   placeholder="you@example.com"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="password" className="block mb-2 font-semibold">Password</label>
+                <label htmlFor="password" className="block mb-1 text-xs font-semibold text-gray-800">Password</label>
                 <input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:border-green-500"
+                  className="w-full px-3 py-2 rounded bg-gray-100 border border-black focus:outline-none focus:ring-2 focus:ring-black focus:border-black text-black transition-all text-sm"
                   placeholder="Your password"
                   required
                 />
               </div>
-              {error && <p className="text-red-500 text-sm">{error}</p>}
+              {error && (
+                <div className="bg-gray-900 border border-black text-white text-center rounded py-2 px-3 text-xs font-medium mb-1">
+                  {error}
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-green-600 hover:bg-green-700 transition-colors py-3 rounded font-semibold text-lg"
+                className="w-full py-2 rounded bg-black hover:bg-gray-800 text-white font-semibold text-base transition-all shadow focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-60"
               >
                 {loading ? 'Logging in...' : 'Login'}
               </button>

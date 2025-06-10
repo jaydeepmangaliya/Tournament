@@ -22,7 +22,6 @@ export default function PlayerSlots() {
   const [showPayment, setShowPayment] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
-
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,25 +35,24 @@ export default function PlayerSlots() {
 
   const fetchPlayerSlots = async (token) => {
     try {
-      const res = await axios.get('http://localhost:2000/api/user', {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/user`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
+      console.log('Player slots response:', res.data);
 
       // Use actual values from backend, fallback only if missing
       const formattedSlots = res.data.data.map(slot => ({
         ...slot,
         game: slot.game || 'Free Fire',
-        startDate: slot.startedAt ? formatDateTime(slot.startedAt) : 'TBD',
+        startDate: slot.startedAt ? formatDateTime(slot.startAt) : 'TBD',
         entryFee: slot.entryFee !== undefined ? `₹${slot.entryFee}` : 'N/A',
         prizePool: slot.prizePool !== undefined ? `₹${slot.prizePool}` : 'N/A',
         status: slot.iscomplated === 'completed' ? 'completed' : 'pending',
         isFull: slot.isfull === 1
       }));
 
-
-      
       setSlots(formattedSlots);
     } catch (error) {
       console.error('Error fetching player slots:', error);
@@ -65,8 +63,6 @@ export default function PlayerSlots() {
       setLoading(false);
     }
   };
-
- 
 
   const handleClose = () => {
     setSelectedSlot(null);
@@ -82,42 +78,40 @@ export default function PlayerSlots() {
   }
 
   return (
-    <div className="bg-gray-950 min-h-screen text-white px-6 pt-28 pb-16">
+    <div className="bg-black min-h-screen text-white px-6 pt-28 pb-16">
       <div className="max-w-screen-xl mx-auto">
         <h1 className="text-4xl font-bold text-center mb-12">Your Assigned Slots</h1>
         {slots.length === 0 ? (
           <p className="text-center text-lg">No slots assigned yet.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {slots.map((slot) => (
-
-             
-              
               <div
                 key={slot.slotId}
-                className={`relative bg-gray-900 rounded-xl overflow-hidden shadow-md p-4 flex flex-col justify-between
-                  ${slot.status === 'completed' ? 'border-4 border-green-600' : ''}
+                className={`relative bg-neutral-900 rounded-2xl shadow-2xl p-8 flex flex-col justify-between border-2
+                  ${slot.status === 'completed' ? 'border-white' : 'border-gray-800'}
                 `}
               >
-                <h3 className="text-xl font-semibold mb-2">{slot.game}</h3>
-                <p><strong>Slot ID:</strong> {slot.slotId}</p>
-                <p><strong>Status:</strong> {slot.status}</p>
-                <p><strong>Start:</strong> {slot.startDate}</p>
-                <p><strong>Entry Fee:</strong> {slot.entryFee}</p>
-                <p><strong>Prize Pool:</strong> {slot.prizePool}</p>
-
+                {/* ...no timer... */}
+                <h3 className="text-2xl font-semibold mb-2">{slot.game}</h3>
+                <p className="mb-1"><strong>Slot ID:</strong> {slot.sloteId}</p>
+                <p className="mb-1">
+                  <strong>Status:</strong> <span className={slot.status === 'completed' ? 'text-white' : 'text-gray-400'}>{slot.status}</span>
+                </p>
+                <p className="mb-1"><strong>Start:</strong> {formatDateTime(slot.startAt)}</p>
+                <p className="mb-1"><strong>Entry Fee:</strong> <span className="text-white">{slot.entryFee}</span></p>
+                <p className="mb-3"><strong>Prize Pool:</strong> <span className="text-white">{slot.prizePool}</span></p>
                 {slot.customeId && slot.customePassword ? (
                   <>
-                    <p className="mt-2 text-green-400 font-semibold">Game ID: {slot.customeId}</p>
-                    <p className="text-green-400 font-semibold">Password: {slot.customePassword}</p>
-                    <p className="text-sm mt-1 italic">Use these credentials to join your match.</p>
+                    <p className="mt-2 text-white font-semibold">Game ID: {slot.customeId}</p>
+                    <p className="text-white font-semibold">Password: {slot.customePassword}</p>
+                    <p className="text-sm mt-1 italic text-gray-300">Use these credentials to join your match.</p>
                   </>
                 ) : (
-                  <p className="mt-2 text-yellow-400 italic">
+                  <p className="mt-2 text-gray-400 italic">
                     <strong>Game ID Status:</strong> Assigned Soon
                   </p>
                 )}
-
               </div>
             ))}
           </div>
@@ -126,12 +120,12 @@ export default function PlayerSlots() {
 
       {showPayment && selectedSlot && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-96 text-black">
-            <h2 className="text-xl font-bold mb-4">Pay for Slot {selectedSlot.slotId}</h2>
-            <p className="mb-4">Game: {selectedSlot.game}</p>
-            <p className="mb-4">Entry Fee: {selectedSlot.entryFee}</p>
+          <div className="bg-neutral-900 rounded-2xl shadow-2xl p-8 w-96 text-white">
+            <h2 className="text-2xl font-bold mb-4">Pay for Slot {selectedSlot.slotId}</h2>
+            <p className="mb-2">Game: <span className="font-semibold">{selectedSlot.game}</span></p>
+            <p className="mb-6">Entry Fee: <span className="text-white font-semibold">{selectedSlot.entryFee}</span></p>
             <button
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+              className="w-full bg-white text-black py-3 rounded-xl font-semibold shadow-lg hover:bg-gray-200 transition duration-200"
               onClick={() => {
                 alert('Payment Successful!');
                 handleClose();
@@ -140,7 +134,7 @@ export default function PlayerSlots() {
               Pay Now
             </button>
             <button
-              className="mt-4 w-full bg-gray-400 text-black py-2 rounded-lg hover:bg-gray-500"
+              className="mt-4 w-full bg-gray-400 text-black py-3 rounded-xl font-semibold hover:bg-gray-500 transition duration-200"
               onClick={handleClose}
             >
               Cancel

@@ -5,7 +5,7 @@ exports.createOrder = async (req, res) => {
 
         console.log("Creating order with data:")
         
-        const result = await paymentService.createOrder(req)
+        const result = await paymentService.createOrder(req,res)
         const { status, data } = result;
         if (!status) {
             return res.status(500).json({ status: false, message: "Failed to create order." });

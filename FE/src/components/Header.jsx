@@ -85,7 +85,8 @@ const Header = () => {
                         ? '/yourmatches'
                         : `/${label.toLowerCase()}`
                   }
-                  className="hover:text-green-500 relative group px-2 py-1 text-sm sm:text-base"
+                  className="hover:text-green-500 relative group px-2 py-1 text-sm sm:text-base font-extrabold tracking-wide"
+                  style={{ fontFamily: 'Orbitron, sans-serif', letterSpacing: '0.04em' }}
                 >
                   {label}
                   <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-green-500 transition-all duration-300 group-hover:w-full"></span>
@@ -99,13 +100,13 @@ const Header = () => {
       {/* Mobile Navigation */}
       {mobileOpen && (
         <motion.nav
-          className="md:hidden bg-gray-900/95 w-full absolute left-0 top-full shadow-lg z-50"
+          className="md:hidden bg-black/95 w-full absolute left-0 top-full shadow-lg z-50 border-t border-white/10"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.3 }}
         >
-          <ul className="flex flex-col items-center py-4 space-y-4">
+          <ul className="flex flex-col items-center py-4 space-y-2">
             {navLinks.map((label, index) => (
               <motion.li
                 key={label}
@@ -123,7 +124,8 @@ const Header = () => {
                         ? '/yourmatches'
                         : `/${label.toLowerCase()}`
                   }
-                  className="text-lg hover:text-green-500 px-4 py-2 block w-full"
+                  className="text-lg font-semibold px-4 py-2 block w-full rounded-lg bg-white/5 text-white hover:bg-white hover:text-black transition-all duration-200"
+                  style={{ fontFamily: 'Orbitron, sans-serif' }}
                   onClick={() => setMobileOpen(false)}
                 >
                   {label}

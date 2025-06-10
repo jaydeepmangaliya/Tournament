@@ -54,7 +54,9 @@ export default function Pendingslote() {
     axios.get('http://localhost:2000/api/slotes')
       .then(res => {
         const slotData = res.data?.data?.rows; 
-        console.log("this is pending slotes `",slotData);
+      
+        
+        
         
         let slotList = [];
         if (Array.isArray(slotData)) {
@@ -66,7 +68,7 @@ export default function Pendingslote() {
         setSlots(pendingSlots);
         const initialEdit = {};
         pendingSlots.forEach(slot => {
-          initialEdit[slot.slotId] = {
+          initialEdit[slot.sloteId] = {
             customeId: slot.customeId || "",
             customePassword: slot.customePassword || ""
           };
@@ -79,34 +81,34 @@ export default function Pendingslote() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleInputChange = (slotId, field, value) => {
+  const handleInputChange = (sloteId, field, value) => {
     setEditValues(prev => ({
       ...prev,
-      [slotId]: {
-        ...prev[slotId],
+      [sloteId]: {
+        ...prev[sloteId],
         [field]: value
       }
     }));
   };
 
-  const handleSave = async (slotId) => {
-    const customeId = editValues[slotId]?.customeId || "";
-    const customePassword = editValues[slotId]?.customePassword || "";
+  const handleSave = async (sloteId) => {
+    const customeId = editValues[sloteId]?.customeId || "";
+    const customePassword = editValues[sloteId]?.customePassword || "";
 
-    // Calculate startedAt as current time + 15 minutes
-    const startedAt = new Date(Date.now() + 15 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    // Calculate startAt as current time + 15 minutes
+    const startAt = new Date(Date.now() + 15 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
 
     try {
       await axios.post('http://localhost:2000/api/update-slote', {
-        sloteId: slotId,
+        sloteId: sloteId,
         customeId,
         customePassword,
-        startedAt
+        startAt
       });
       setSlots(prev =>
         prev.map(slot =>
-          slot.slotId === slotId
-            ? { ...slot, customeId, customePassword, startedAt }
+          slot.sloteId === sloteId
+            ? { ...slot, customeId, customePassword, startAt }
             : slot
         )
       );
@@ -152,7 +154,7 @@ export default function Pendingslote() {
             <tbody>
               {slots.map((slot, index) => (
                 <tr key={index} className="border-t border-gray-700">
-                  <td className="px-4 py-2">{slot.slotId}</td>
+                  <td className="px-4 py-2">{slot.sloteId}</td>
                   <td className="px-4 py-2">{slot.gameId}</td>
                   <td className="px-4 py-2">₹{slot.entryFee}</td>
                   <td className="px-4 py-2">₹{slot.prizePool}</td>
@@ -162,23 +164,23 @@ export default function Pendingslote() {
                     <input
                       type="text"
                       className="bg-gray-700 text-white px-2 py-1 rounded w-full"
-                      value={editValues[slot.slotId]?.customeId || ""}
-                      onChange={e => handleInputChange(slot.slotId, 'customeId', e.target.value)}
+                      value={editValues[slot.sloteId]?.customeId || ""}
+                      onChange={e => handleInputChange(slot.sloteId, 'customeId', e.target.value)}
                     />
                   </td>
                   <td className="px-4 py-2">
                     <input
                       type="text"
                       className="bg-gray-700 text-white px-2 py-1 rounded w-full"
-                      value={editValues[slot.slotId]?.customePassword || ""}
-                      onChange={e => handleInputChange(slot.slotId, 'customePassword', e.target.value)}
+                      value={editValues[slot.sloteId]?.customePassword || ""}
+                      onChange={e => handleInputChange(slot.sloteId, 'customePassword', e.target.value)}
                     />
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap w-48">{formatDateTime(slot.startedAt)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap w-48">{formatDateTime(slot.startAt)}</td>
                   <td className="px-4 py-2">
                     <button
                       className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
-                      onClick={() => handleSave(slot.slotId)}
+                      onClick={() => handleSave(slot.sloteId)}
                     >
                       Save
                     </button>
