@@ -20,15 +20,15 @@ const Header = () => {
 
   return (
     <header
-      className="fixed w-full z-50 p-4  text-white shadow-md"
-    style={{
-      backgroundColor: "rgba(255, 255, 255, 0.1)",
-      backdropFilter: "blur(10px)",
-      WebkitBackdropFilter: "blur(10px)",
-      borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
-    }}
+      className="fixed w-full z-50 text-white shadow-md px-2 py-1 sm:px-4 sm:py-2 lg:py-1.5"
+      style={{
+        backgroundColor: "rgba(255, 255, 255, 0.1)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+      }}
     >
-      <div className="flex justify-between items-center max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex justify-between items-center max-w-screen-xl mx-auto px-0 sm:px-6 lg:px-8 min-h-[2rem] sm:min-h-[2.7rem] lg:min-h-[2.2rem]">
         {/* Logo with animation */}
         <motion.div
           initial={{ opacity: 0, x: -100 }}
@@ -37,7 +37,12 @@ const Header = () => {
           className="flex items-center"
         >
           <motion.h2
-            className="text-2xl sm:text-3xl font-bold"
+            className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent"
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontWeight: '700',
+              letterSpacing: '-0.02em'
+            }}
             whileHover={{ scale: 1.05 }}
           >
             GameArena
@@ -85,11 +90,15 @@ const Header = () => {
                         ? '/yourmatches'
                         : `/${label.toLowerCase()}`
                   }
-                  className="hover:text-green-500 relative group px-2 py-1 text-sm sm:text-base font-extrabold tracking-wide"
-                  style={{ fontFamily: 'Orbitron, sans-serif', letterSpacing: '0.04em' }}
+                  className="hover:text-blue-400 relative group px-3 py-2 text-sm sm:text-base font-medium transition-all duration-300"
+                  style={{
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontWeight: '500',
+                    letterSpacing: '0.01em'
+                  }}
                 >
                   {label}
-                  <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-green-500 transition-all duration-300 group-hover:w-full"></span>
+                  <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-blue-400 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
               </motion.li>
             ))}
@@ -124,8 +133,12 @@ const Header = () => {
                         ? '/yourmatches'
                         : `/${label.toLowerCase()}`
                   }
-                  className="text-lg font-semibold px-4 py-2 block w-full rounded-lg bg-white/5 text-white hover:bg-white hover:text-black transition-all duration-200"
-                  style={{ fontFamily: 'Orbitron, sans-serif' }}
+                  className="text-base font-medium px-4 py-3 block w-full rounded-lg bg-white/5 text-white hover:bg-blue-500 hover:text-white transition-all duration-300"
+                  style={{
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontWeight: '500',
+                    letterSpacing: '0.01em'
+                  }}
                   onClick={() => setMobileOpen(false)}
                 >
                   {label}

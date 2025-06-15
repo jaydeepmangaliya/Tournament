@@ -206,7 +206,10 @@ const FeaturedTournaments = () => {
                   <span>{tournament.participants} participants</span>
                   <span>{new Date(tournament.date).toLocaleDateString()}</span>
                 </div>
-                <button className="w-full py-2 sm:py-3 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors mt-auto">
+                <button
+                  onClick={() => window.location.href = "/tournaments"}
+                  className="w-full py-2 sm:py-3 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors mt-auto"
+                >
                   Register Now
                 </button>
               </div>

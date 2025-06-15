@@ -57,10 +57,104 @@ export default function TournamentsPage() {
 
   
 
-  const handlePay = () => {
+  const handlePay = async () => {
+    try {
+      // Create order on backend
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('You need to login first!');
+        navigate('/login');
+        return;
+      }
 
-  setPaymentDone(true);
-  
+      const orderResponse = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/payment/create-order`,
+        {
+          amount: selectedGame.entryFee,
+          currency: 'INR',
+          tournamentId: selectedGame.id || selectedGame._id,
+          tournamentName: selectedGame.name
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const { orderId, amount, currency } = orderResponse.data;
+
+      // Initialize Razorpay
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: amount,
+        currency: currency,
+        name: 'Tournament Registration',
+        description: `Entry fee for ${selectedGame.name}`,
+        order_id: orderId,
+        handler: async function (response) {
+          try {
+            // Verify payment on backend
+            const verifyResponse = await axios.post(
+              `${import.meta.env.VITE_API_URL}/api/payment/verify`,
+              {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                tournamentId: selectedGame.id || selectedGame._id,
+                amount: selectedGame.entryFee
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+
+            if (verifyResponse.data.success) {
+              setPaymentDone(true);
+              alert('Payment successful! You can now submit your registration.');
+            } else {
+              alert('Payment verification failed. Please try again.');
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            alert('Payment verification failed. Please contact support.');
+          }
+        },
+        modal: {
+          ondismiss: function() {
+            console.log('Payment modal closed');
+          }
+        }
+      };
+
+      // Check if Razorpay is loaded
+      if (typeof window.Razorpay === 'undefined') {
+        alert('Payment gateway not loaded. Please refresh the page and try again.');
+        return;
+      }
+
+      const rzp = new window.Razorpay(options);
+
+      rzp.on('payment.failed', function (response) {
+        console.error('Payment failed:', response.error);
+        alert(`Payment failed: ${response.error.description}`);
+      });
+
+      rzp.open();
+
+    } catch (error) {
+      console.error('Payment initiation error:', error);
+      if (error.response && error.response.status === 401) {
+        alert('Session expired, please login again.');
+        navigate('/login');
+      } else {
+        alert('Failed to initiate payment. Please try again.');
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -120,7 +214,7 @@ export default function TournamentsPage() {
     <div className="w-full min-h-screen bg-[#0f0f0f] text-white px-4 py-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Tournaments</h1>
+
         </div>
 
         {gameList.length === 0 ? (
@@ -128,7 +222,7 @@ export default function TournamentsPage() {
         ) : (
           gameList.map((game, idx) => (
             <div key={idx} className="mb-10">
-              <h2 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2">{game}</h2>
+              <h2 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2 pt-2">{game}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {games[game].map((item, index) => (
                   <motion.div
