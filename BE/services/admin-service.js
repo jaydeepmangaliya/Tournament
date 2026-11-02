@@ -485,6 +485,19 @@ adminService.declareMatchResults = async (tournamentId, body) => {
 
     await connection.commit();
 
+    // Auto-Lobby Rebirth: Ensure players can immediately jump into the next open lobby
+    try {
+      const tournamentService = require('./tournament-service');
+      await tournamentService.ensureOpenLobbyExists(
+        tournament.game_id,
+        tournament.format,
+        tournament.match_type,
+        tournament
+      );
+    } catch (reErr) {
+      console.error('[AUTO-LOBBY REBIRTH] Error on match complete:', reErr.message);
+    }
+
     return {
       status: true,
       message: `Match #${tournamentId} finalized! Distributed ₹${totalPrizesDistributed.toFixed(2)} in prizes directly to winner wallets.`,

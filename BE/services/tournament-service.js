@@ -336,48 +336,14 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         [tournamentId]
       );
 
-      // AUTOMATED TOURNAMENT SPAWN: Create fresh next match for this game & format
-      try {
-        let nextTitle = tournament.title;
-        const matchHashMatch = nextTitle.match(/#(\d+)$/);
-        if (matchHashMatch) {
-          const nextNum = parseInt(matchHashMatch[1], 10) + 1;
-          nextTitle = nextTitle.replace(/#\d+$/, `#${nextNum}`);
-        } else {
-          nextTitle = `${nextTitle} #2`;
-        }
-
-        const prevStartTime = new Date(tournament.match_start_at).getTime();
-        const nextStartTime = new Date(Math.max(Date.now() + 3600000 * 2, prevStartTime + 3600000 * 2));
-
-        const [newTourney] = await connection.query(
-          `INSERT INTO tournaments (
-            game_id, title, match_type, format, map_name, total_slots,
-            total_teams, players_per_team, entry_fee, prize_pool, per_kill_prize,
-            first_prize, second_prize, third_prize, match_start_at, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
-          [
-            tournament.game_id,
-            nextTitle,
-            tournament.match_type,
-            tournament.format,
-            tournament.map_name,
-            tournament.total_slots,
-            tournament.total_teams,
-            tournament.players_per_team,
-            tournament.entry_fee,
-            tournament.prize_pool,
-            tournament.per_kill_prize,
-            tournament.first_prize,
-            tournament.second_prize,
-            tournament.third_prize,
-            nextStartTime,
-          ]
-        );
-        console.log(`[AUTO-MATCH] Tournament #${tournamentId} full! Auto-created next Match #${newTourney.insertId} (${nextTitle}) with all slots free.`);
-      } catch (spawnErr) {
-        console.error('[AUTO-MATCH] Error spawning next tournament:', spawnErr.message);
-      }
+      // AUTOMATED TOURNAMENT SPAWN: Create fresh next match for this game & format if none open
+      await tournamentService.ensureOpenLobbyExists(
+        tournament.game_id,
+        tournament.format,
+        tournament.match_type,
+        tournament,
+        connection
+      );
     }
 
     // J. ONBOARDING & REFERRAL COMMISSION TRIGGER
@@ -1032,6 +998,14 @@ tournamentService.addTeamAdmin = async (tournamentId, body) => {
     );
     if (teamCount[0].cnt >= tournament.total_teams) {
       await connection.query(`UPDATE tournaments SET status = 'ready' WHERE id = ?`, [tournamentId]);
+      // Trigger Auto-Lobby Rebirth if this match just got full
+      await tournamentService.ensureOpenLobbyExists(
+        tournament.game_id,
+        tournament.format,
+        tournament.match_type,
+        tournament,
+        connection
+      );
     }
 
     await connection.commit();
@@ -1042,6 +1016,84 @@ tournamentService.addTeamAdmin = async (tournamentId, body) => {
     throw error;
   } finally {
     connection.release();
+  }
+};
+
+// 12. Automated 24/7 Match Loop: Ensure an open lobby is always available for players
+tournamentService.ensureOpenLobbyExists = async (gameId, format, matchType, sourceTournament = null, connection = null) => {
+  const runner = connection || db.promise();
+  try {
+    // Check if there is an active 'open' tournament with available seats
+    const [openTourneys] = await runner.query(`
+      SELECT t.id, t.total_teams, COUNT(tt.id) as filled_teams
+      FROM tournaments t
+      LEFT JOIN tournament_teams tt ON tt.tournament_id = t.id
+      WHERE t.game_id = ? AND t.format = ? AND t.status = 'open'
+      GROUP BY t.id
+      HAVING filled_teams < t.total_teams
+      LIMIT 1
+    `, [gameId, format]);
+
+    // If an open tournament with open slots already exists, no need to duplicate
+    if (openTourneys.length > 0) {
+      return null;
+    }
+
+    // Need to spawn fresh match! Get template tournament
+    let tmpl = sourceTournament;
+    if (!tmpl) {
+      const [rows] = await runner.query(`
+        SELECT * FROM tournaments 
+        WHERE game_id = ? AND format = ?
+        ORDER BY id DESC LIMIT 1
+      `, [gameId, format]);
+      if (rows.length > 0) tmpl = rows[0];
+    }
+
+    if (!tmpl) return null;
+
+    // Determine next title with auto-incrementing match number
+    let nextTitle = tmpl.title;
+    const matchHash = nextTitle.match(/#(\d+)$/);
+    if (matchHash) {
+      const nextNum = parseInt(matchHash[1], 10) + 1;
+      nextTitle = nextTitle.replace(/#\d+$/, `#${nextNum}`);
+    } else {
+      nextTitle = `${nextTitle} #2`;
+    }
+
+    // Schedule 2 hours from now
+    const nextStartTime = new Date(Date.now() + 3600000 * 2);
+
+    const [inserted] = await runner.query(`
+      INSERT INTO tournaments (
+        game_id, title, match_type, format, map_name, total_slots,
+        total_teams, players_per_team, entry_fee, prize_pool, per_kill_prize,
+        first_prize, second_prize, third_prize, match_start_at, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+    `, [
+      tmpl.game_id,
+      nextTitle,
+      tmpl.match_type || 'battle_royale',
+      tmpl.format,
+      tmpl.map_name || 'Bermuda',
+      tmpl.total_slots,
+      tmpl.total_teams,
+      tmpl.players_per_team,
+      tmpl.entry_fee,
+      tmpl.prize_pool,
+      tmpl.per_kill_prize || 0,
+      tmpl.first_prize,
+      tmpl.second_prize || 0,
+      tmpl.third_prize || 0,
+      nextStartTime,
+    ]);
+
+    console.log(`[AUTO-LOBBY REBIRTH] Spawned fresh Match #${inserted.insertId} (${nextTitle}) for 24/7 continuous play!`);
+    return inserted.insertId;
+  } catch (err) {
+    console.error('[AUTO-LOBBY REBIRTH] Error:', err.message);
+    return null;
   }
 };
 
