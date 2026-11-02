@@ -9,11 +9,10 @@ export default function AdminDashboard() {
   // Strict isolated admin authentication storage
   const adminToken = localStorage.getItem('admin_token');
   const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
-  const isAdmin = Boolean(adminToken && adminUser?.role === 'admin');
 
-  // Active Navigation Tab
-  // 'ready' | 'open' | 'ongoing' | 'completed' | 'results' | 'withdrawals' | 'players' | 'create'
-  const [activeTab, setActiveTab] = useState('ready');
+  // Simple, intuitive tabs:
+  // 'full' (Need Room ID) | 'open' (Joining) | 'live' (Playing) | 'completed' (Finished) | 'withdrawals' | 'players' | 'create'
+  const [activeTab, setActiveTab] = useState('full');
 
   // Data states
   const [tournaments, setTournaments] = useState([]);
@@ -24,14 +23,14 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Tournament Management states
+  // Tournament room credentials state (by tournament ID)
   const [credentials, setCredentials] = useState({});
   const [submittingCredId, setSubmittingCredId] = useState(null);
   const [expandedRosterId, setExpandedRosterId] = useState(null);
   const [copiedUIDsId, setCopiedUIDsId] = useState(null);
 
-  // Match Results & Payout state
-  const [selectedResultMatchId, setSelectedResultMatchId] = useState('');
+  // Winner Declaration Modal state (opened directly on a live match)
+  const [declaringWinnerMatch, setDeclaringWinnerMatch] = useState(null);
   const [clashWinnerTeamId, setClashWinnerTeamId] = useState('');
   const [brRank1TeamId, setBrRank1TeamId] = useState('');
   const [brRank2TeamId, setBrRank2TeamId] = useState('');
@@ -133,11 +132,11 @@ export default function AdminDashboard() {
     navigate('/admin/login', { replace: true });
   };
 
-  // 1. Room Credentials Dispatch
-  const handleSaveCredentials = async (tournamentId) => {
+  // STEP 2: Give Room ID & Password, Start Match
+  const handleStartMatch = async (tournamentId) => {
     const cred = credentials[tournamentId];
     if (!cred?.roomId?.trim() || !cred?.roomPassword?.trim()) {
-      alert('Please enter both Room ID and Room Password.');
+      alert('Please enter both Custom Room ID and Password before starting the match.');
       return;
     }
 
@@ -150,8 +149,9 @@ export default function AdminDashboard() {
       );
 
       if (res.data.status) {
-        setMessage(`Credentials published for Match #${tournamentId}! Status moved to ONGOING and visible to registered players.`);
+        setMessage(`Match #${tournamentId} started! Room ID & Password sent to registered players. Moved to Live Matches.`);
         setTimeout(() => setMessage(''), 5000);
+        setActiveTab('live');
         loadAllAdminData();
       }
     } catch (err) {
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Copy all player UIDs to clipboard for in-game verification
+  // Copy all player UIDs to clipboard for in-game Free Fire / BGMI room invites
   const handleCopyAllUIDs = (tournament) => {
     const uids = [];
     tournament.teams?.forEach((team) => {
@@ -171,7 +171,7 @@ export default function AdminDashboard() {
     });
 
     if (uids.length === 0) {
-      alert('No player UIDs found for this tournament yet.');
+      alert('No participants registered in this tournament yet.');
       return;
     }
 
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
     setTimeout(() => setCopiedUIDsId(null), 2500);
   };
 
-  // Remove team from tournament slot with fee refund
+  // Kick team from tournament slot with entry fee refund
   const handleRemoveTeam = async (tournamentId, team) => {
     const confirmRemove = window.confirm(
       `Remove team "${team.team_name}" from Slot #${team.slot_number}?\n\nTheir entry fee will be refunded back to the player's wallet, and the slot will be reopened.`
@@ -226,23 +226,28 @@ export default function AdminDashboard() {
     }
   };
 
-  // 2. Finalize Results & Trigger Automated Atomic Payouts
-  const handleDeclareResults = async (e) => {
+  // STEP 4: Enter Winner & Send Prize Modal Open
+  const handleOpenWinnerModal = (match) => {
+    setDeclaringWinnerMatch(match);
+    setClashWinnerTeamId('');
+    setBrRank1TeamId('');
+    setBrRank2TeamId('');
+    setBrRank3TeamId('');
+    setKillBounties({});
+  };
+
+  // STEP 4: Submit Winner & Distribute Prize Money
+  const handleSubmitWinner = async (e) => {
     e.preventDefault();
-    if (!selectedResultMatchId) {
-      alert('Please select a tournament to finalize results.');
-      return;
-    }
+    if (!declaringWinnerMatch) return;
 
-    const match = tournaments.find((t) => t.id === parseInt(selectedResultMatchId));
-    if (!match) return;
-
+    const match = declaringWinnerMatch;
     const winners = [];
     const killList = [];
 
     if (match.match_type === 'clash') {
       if (!clashWinnerTeamId) {
-        alert('Please select the winning squad.');
+        alert('Please select the winning team.');
         return;
       }
       winners.push({
@@ -252,7 +257,7 @@ export default function AdminDashboard() {
       });
     } else {
       if (!brRank1TeamId) {
-        alert('Please select Rank 1 (Booyah Team).');
+        alert('Please select the 1st Place (Booyah) winner.');
         return;
       }
       winners.push({ teamId: brRank1TeamId, rank: 1, prize: match.first_prize });
@@ -275,37 +280,34 @@ export default function AdminDashboard() {
       });
     }
 
-    if (!confirm(`Confirm payout? This will instantly credit winner wallets and complete Match #${selectedResultMatchId}.`)) {
-      return;
-    }
+    const confirmPayout = window.confirm(
+      `Confirm prize distribution for Match #${match.id}?\n\nPrize money will be transferred directly to winner wallets and the match will be completed.`
+    );
+    if (!confirmPayout) return;
 
     try {
       setSubmitting(true);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${selectedResultMatchId}/results`,
+        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${match.id}/results`,
         { winners, killBounties: killList },
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
 
       if (res.data.status) {
-        setMessage(res.data.message || 'Results finalized and prizes distributed!');
+        setMessage(`Match #${match.id} finalized! Prizes transferred to winner wallets. Match moved to Completed.`);
         setTimeout(() => setMessage(''), 5000);
-        setSelectedResultMatchId('');
-        setClashWinnerTeamId('');
-        setBrRank1TeamId('');
-        setBrRank2TeamId('');
-        setBrRank3TeamId('');
-        setKillBounties({});
+        setDeclaringWinnerMatch(null);
+        setActiveTab('completed');
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to finalize results.');
+      alert(err.response?.data?.message || 'Failed to distribute prizes.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 3. Withdrawals Approval & Rejection
+  // Withdrawals Approval & Rejection
   const handleApproveWithdrawal = async (withdrawalId) => {
     const utr = utrNumbers[withdrawalId]?.trim();
     try {
@@ -358,7 +360,7 @@ export default function AdminDashboard() {
     setTimeout(() => setCopiedUpiId(null), 1500);
   };
 
-  // 4. Create Tournament Templates
+  // Create Tournament Templates
   const applyTemplate = (type) => {
     const now = new Date();
     const plusTwoHours = new Date(now.getTime() + 7200000).toISOString().slice(0, 16);
@@ -466,7 +468,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // 5. Superuser User & Affiliate Management
+  // User Management
   const handleToggleBan = async (targetUser) => {
     const newStatus = targetUser.status === 'banned' ? 'active' : 'banned';
     const confirmAction = window.confirm(
@@ -552,14 +554,14 @@ export default function AdminDashboard() {
     }
   };
 
-  // Filtered categories
-  const readyMatches = tournaments.filter(
+  // Group tournaments into clear stages
+  const fullMatches = tournaments.filter(
     (t) => t.status === 'ready' || (t.filled_teams >= t.total_teams && (!t.room_id || !t.room_password))
   );
   const openMatches = tournaments.filter(
     (t) => t.status === 'open' && t.filled_teams < t.total_teams
   );
-  const ongoingMatches = tournaments.filter((t) => t.status === 'ongoing');
+  const liveMatches = tournaments.filter((t) => t.status === 'ongoing');
   const completedMatches = tournaments.filter((t) => t.status === 'completed');
 
   const filteredWithdrawals = withdrawals.filter((w) => {
@@ -579,47 +581,44 @@ export default function AdminDashboard() {
     return matchSearch && matchRole;
   });
 
+  // 7 Clean, Layman-Friendly Tabs
   const tabs = [
     {
-      id: 'ready',
-      label: '1. Ready to Match (Full)',
-      count: readyMatches.length ? `${readyMatches.length} READY` : null,
-      alert: readyMatches.length > 0,
+      id: 'full',
+      label: '1. Full (Need Room ID)',
+      count: fullMatches.length ? `${fullMatches.length} READY` : null,
+      alert: fullMatches.length > 0,
     },
     {
       id: 'open',
-      label: '2. Available Lobbies',
+      label: '2. Open Matches',
       count: `${openMatches.length} OPEN`,
     },
     {
-      id: 'ongoing',
-      label: '3. Live Ongoing',
-      count: ongoingMatches.length ? `${ongoingMatches.length} LIVE` : null,
-      alert: ongoingMatches.length > 0,
+      id: 'live',
+      label: '3. Live Matches',
+      count: liveMatches.length ? `${liveMatches.length} LIVE` : null,
+      alert: liveMatches.length > 0,
     },
     {
       id: 'completed',
-      label: '4. Finished Matches',
+      label: '4. Completed Matches',
       count: `${completedMatches.length}`,
     },
     {
-      id: 'results',
-      label: '5. Declare Results & Payouts',
-    },
-    {
       id: 'withdrawals',
-      label: '6. Cashout Desk (UPI)',
+      label: '5. UPI Withdrawals',
       count: analytics?.withdrawals?.pendingCount || null,
       alert: (analytics?.withdrawals?.pendingCount || 0) > 0,
     },
     {
       id: 'players',
-      label: '7. Players & Affiliates',
+      label: '6. Players & Affiliates',
       count: `${users.length}`,
     },
     {
       id: 'create',
-      label: '8. Create Tournament',
+      label: '7. + New Match',
     },
   ];
 
@@ -634,12 +633,70 @@ export default function AdminDashboard() {
     );
   }
 
+  // Roster / Participant Sub-Component for any match card
+  const renderParticipantRoster = (tournament) => {
+    if (expandedRosterId !== tournament.id) return null;
+
+    return (
+      <div className="mt-3 bg-[#08080c] p-3 rounded-xl border border-zinc-800 max-h-72 overflow-y-auto space-y-2 text-xs">
+        <div className="flex justify-between items-center pb-1 border-b border-zinc-800/80">
+          <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
+            Registered Slots & Players ({tournament.teams?.length || 0} Booked):
+          </span>
+          <button
+            onClick={() => handleCopyAllUIDs(tournament)}
+            className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 transition"
+          >
+            {copiedUIDsId === tournament.id ? 'UIDs Copied!' : 'Copy All UIDs'}
+          </button>
+        </div>
+
+        {tournament.teams?.length === 0 ? (
+          <p className="text-[11px] text-zinc-500 py-2">No players booked in this match yet.</p>
+        ) : (
+          tournament.teams?.map((team) => (
+            <div key={team.id} className="p-2.5 bg-[#101016] rounded-lg border border-zinc-800/80 space-y-1.5">
+              <div className="flex justify-between items-center text-white">
+                <div className="flex items-center space-x-2">
+                  <span className="px-1.5 py-0.5 rounded bg-zinc-800 font-mono font-bold text-[10px] text-amber-300">
+                    Slot #{team.slot_number}
+                  </span>
+                  <span className="font-bold">{team.team_name}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    Captain: {team.leader_name} ({team.leader_phone || 'No Phone'})
+                  </span>
+                  {tournament.status !== 'completed' && (
+                    <button
+                      onClick={() => handleRemoveTeam(tournament.id, team)}
+                      className="px-1.5 py-0.5 rounded bg-red-950/80 hover:bg-red-800 text-[9px] font-bold text-red-200 border border-red-700 transition"
+                    >
+                      Kick & Refund
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-zinc-300">
+                {team.players?.map((p) => (
+                  <div key={p.id} className="bg-black/50 px-2 py-0.5 rounded font-mono">
+                    {p.is_leader ? '[LEADER] ' : ''}{p.in_game_name} ({p.in_game_id})
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#050507] text-[#e4e4e7] antialiased">
-      {/* 1. DEDICATED ISOLATED TOPBAR (NEVER INTERFERES WITH PLAYER SITE) */}
+      {/* 1. DEDICATED ISOLATED TOPBAR */}
       <nav className="sticky top-0 z-40 bg-[#08080c]/95 backdrop-blur-md border-b border-zinc-800 px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 max-w-7xl mx-auto">
-          {/* Brand & Admin Badge */}
+          {/* Brand */}
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0 shadow-lg">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -650,7 +707,7 @@ export default function AdminDashboard() {
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-black text-white tracking-wider">LOCALESPORT</span>
                 <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/40 text-[9px] font-black uppercase text-amber-300 tracking-wider">
-                  Superuser Console
+                  Admin Console
                 </span>
               </div>
               <div className="flex items-center space-x-1.5 text-[11px] text-zinc-400 mt-0.5">
@@ -660,7 +717,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Real-time Financial Turnover Tickers & Quick Actions */}
+          {/* Real-time Tickers & Actions */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="px-3 py-1.5 rounded-xl bg-[#101016] border border-zinc-800 flex items-center space-x-2">
               <span className="text-[10px] uppercase font-bold text-zinc-500">Total Fees</span>
@@ -678,17 +735,19 @@ export default function AdminDashboard() {
 
             <div className="px-3 py-1.5 rounded-xl bg-[#101016] border border-zinc-800 flex items-center space-x-2">
               <span className="text-[10px] uppercase font-bold text-zinc-500">Pending UPI</span>
-              <span className={`text-xs font-mono font-bold ${
-                (analytics?.withdrawals?.pendingCount || 0) > 0 ? 'text-amber-400 animate-pulse' : 'text-zinc-400'
-              }`}>
+              <span
+                className={`text-xs font-mono font-bold ${
+                  (analytics?.withdrawals?.pendingCount || 0) > 0 ? 'text-amber-400 animate-pulse' : 'text-zinc-400'
+                }`}
+              >
                 {analytics?.withdrawals?.pendingCount || 0} Req
               </span>
             </div>
 
-            {/* Refresh Data Button */}
+            {/* Refresh */}
             <button
               onClick={loadAllAdminData}
-              title="Refresh Data"
+              title="Refresh"
               className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white transition"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -698,14 +757,14 @@ export default function AdminDashboard() {
               </svg>
             </button>
 
-            {/* Open Website in New Window for Testing */}
+            {/* View Player Site */}
             <a
               href="/"
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-[11px] font-bold text-zinc-300 hover:text-white transition flex items-center space-x-1"
             >
-              <span>View Player Site</span>
+              <span>Player Website</span>
               <svg className="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                 <polyline points="15 3 21 3 21 9" />
@@ -713,7 +772,7 @@ export default function AdminDashboard() {
               </svg>
             </a>
 
-            {/* Admin Sign Out */}
+            {/* Admin Logout */}
             <button
               onClick={handleAdminLogout}
               className="px-3 py-1.5 rounded-xl bg-red-950/40 border border-red-800/60 hover:bg-red-900/50 text-[11px] font-bold text-red-300 transition flex items-center space-x-1"
@@ -731,7 +790,7 @@ export default function AdminDashboard() {
 
       {/* 2. MAIN ADMIN CONTAINER */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Global Toast Alert Notification */}
+        {/* Global Toast Alert */}
         {message && (
           <div className="p-3.5 bg-emerald-950/50 border border-emerald-500 text-emerald-200 rounded-2xl text-xs font-bold flex items-center space-x-2 shadow-lg">
             <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -741,7 +800,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* 3. MASTER TOURNAMENT STATUS TABS */}
+        {/* 3. SIMPLIFIED 7 TABS */}
         <div className="flex overflow-x-auto space-x-2 p-1.5 bg-[#0c0c12] border border-zinc-800 rounded-2xl scrollbar-none shadow-xl">
           {tabs.map((tab) => (
             <button
@@ -772,9 +831,9 @@ export default function AdminDashboard() {
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: READY TO MATCH (FULL CAPACITY REACHED - SCHEDULE & ROOM CREDS)     */}
+        {/* TAB 1: FULL MATCHES (NEED ROOM ID & PASSWORD)                             */}
         {/* ========================================================================= */}
-        {activeTab === 'ready' && (
+        {activeTab === 'full' && (
           <div className="space-y-6">
             <div className="bg-[#12121c] border-2 border-amber-500/80 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
               <div className="flex items-center space-x-2.5">
@@ -783,33 +842,33 @@ export default function AdminDashboard() {
                   <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500" />
                 </span>
                 <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
-                  Ready to Match (100% Full Lobbies) — Enter Custom Room Details
+                  Step 1 & 2: Match is 100% Full — Enter Room ID & Password
                 </h2>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                These lobbies reached full capacity (48/48 players or all squad slots booked). Players have paid and are waiting for the Custom Room ID & Password. Once broadcasted, credentials immediately appear on player screens and status transitions to Live Ongoing.
+                All slots are booked and players have paid their entry fees. Open Free Fire or BGMI, create the custom room, enter the Room ID and Password below, and click <strong>"Share Room ID & Start Match"</strong>. Credentials will instantly appear on the players' screens!
               </p>
 
-              {readyMatches.length === 0 ? (
+              {fullMatches.length === 0 ? (
                 <div className="p-8 text-center bg-[#0c0c10] border border-zinc-800 rounded-2xl space-y-2">
                   <svg className="w-8 h-8 text-zinc-600 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 6v6l4 2" />
                   </svg>
-                  <p className="text-xs text-zinc-400 font-bold">No lobbies currently waiting for credentials.</p>
+                  <p className="text-xs text-zinc-400 font-bold">No matches waiting for Room ID right now.</p>
                   <p className="text-[11px] text-zinc-500">
-                    Matches automatically move into this tab the moment player registrations hit 100% capacity.
+                    Matches appear here automatically as soon as all seats are booked by players.
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {readyMatches.map((t) => (
+                  {fullMatches.map((t) => (
                     <div key={t.id} className="bg-[#0c0c10] border border-amber-600/40 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xl">
                       <div className="flex justify-between items-start gap-2">
                         <div>
                           <div className="flex items-center space-x-2">
                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700 animate-pulse">
-                              FULL ({t.filled_teams}/{t.total_teams})
+                              100% FULL ({t.filled_teams}/{t.total_teams})
                             </span>
                             <span className="text-[10px] font-mono text-zinc-400">Match #{t.id} • {t.game_name}</span>
                           </div>
@@ -827,17 +886,17 @@ export default function AdminDashboard() {
                         </span>
                       </div>
 
-                      {/* Credentials Input */}
+                      {/* Room ID & Password Input */}
                       <div className="bg-[#14141d] p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 block">
-                          Broadcast Custom Room to Registered Players:
+                          Paste Game Room Credentials:
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <label className="text-[10px] uppercase font-bold text-zinc-500 block mb-0.5">Custom Room ID *</label>
                             <input
                               type="text"
-                              placeholder="e.g. FF-849204"
+                              placeholder="e.g. 8492048"
                               value={credentials[t.id]?.roomId || ''}
                               onChange={(e) =>
                                 setCredentials({
@@ -849,7 +908,7 @@ export default function AdminDashboard() {
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] uppercase font-bold text-zinc-500 block mb-0.5">Password *</label>
+                            <label className="text-[10px] uppercase font-bold text-zinc-500 block mb-0.5">Room Password *</label>
                             <input
                               type="text"
                               placeholder="e.g. 7788"
@@ -867,27 +926,21 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                           <button
-                            onClick={() => handleSaveCredentials(t.id)}
+                            onClick={() => handleStartMatch(t.id)}
                             disabled={submittingCredId === t.id}
                             className="flex-1 py-2 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-lg transition hover:brightness-110 shadow-md disabled:opacity-50"
                           >
-                            {submittingCredId === t.id ? 'Broadcasting...' : 'Broadcast Room to Players'}
-                          </button>
-                          <button
-                            onClick={() => handleCopyAllUIDs(t)}
-                            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-lg transition"
-                          >
-                            {copiedUIDsId === t.id ? 'UIDs Copied!' : 'Copy All UIDs'}
+                            {submittingCredId === t.id ? 'Starting...' : 'Share Room ID & Start Match'}
                           </button>
                           <button
                             onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
                             className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
                           >
-                            {expandedRosterId === t.id ? 'Hide Slots' : `Roster Slots (${t.teams?.length || 0})`}
+                            {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
                           </button>
                           <button
                             onClick={() => handleDeleteTournament(t)}
-                            title="Delete tournament and refund all players"
+                            title="Delete match and refund all players"
                             className="p-2 bg-red-950/40 hover:bg-red-900 text-red-300 rounded-lg border border-red-800/80 transition"
                           >
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -898,44 +951,8 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Expandable Roster Slot Inspector */}
-                      {expandedRosterId === t.id && (
-                        <div className="bg-[#08080c] p-3 rounded-xl border border-zinc-800 max-h-72 overflow-y-auto space-y-2 text-xs">
-                          <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
-                            Booked Slot Roster (Kick team to reopen slot):
-                          </span>
-                          {t.teams?.map((team) => (
-                            <div key={team.id} className="p-2.5 bg-[#101016] rounded-lg border border-zinc-800 space-y-1.5">
-                              <div className="flex justify-between items-center text-white">
-                                <div className="flex items-center space-x-2">
-                                  <span className="px-1.5 py-0.5 rounded bg-zinc-800 font-mono font-bold text-[10px] text-amber-300">
-                                    Slot #{team.slot_number}
-                                  </span>
-                                  <span className="font-bold">{team.team_name}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-[10px] text-zinc-400 font-mono">
-                                    Captain: {team.leader_name} ({team.leader_phone || 'No Phone'})
-                                  </span>
-                                  <button
-                                    onClick={() => handleRemoveTeam(t.id, team)}
-                                    className="px-2 py-0.5 rounded bg-red-950/80 hover:bg-red-800 text-[10px] font-bold text-red-200 border border-red-700 transition"
-                                  >
-                                    Kick & Refund
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-zinc-300">
-                                {team.players?.map((p) => (
-                                  <div key={p.id} className="bg-black/50 px-2 py-0.5 rounded font-mono">
-                                    {p.is_leader ? '[LEADER] ' : ''}{p.in_game_name} ({p.in_game_id})
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {/* Participant Slots Roster */}
+                      {renderParticipantRoster(t)}
                     </div>
                   ))}
                 </div>
@@ -945,33 +962,33 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: AVAILABLE LOBBIES (OPEN SEATS - PLAYERS CURRENTLY JOINING)          */}
+        {/* TAB 2: OPEN MATCHES (PLAYERS CURRENTLY JOINING & CHOOSING SEATS)          */}
         {/* ========================================================================= */}
         {activeTab === 'open' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-base font-bold text-white">Available Open Lobbies ({openMatches.length})</h2>
+                <h2 className="text-base font-bold text-white">Open Matches ({openMatches.length})</h2>
                 <p className="text-xs text-zinc-400">
-                  Lobbies currently open on the platform. Players can pick open slots (#1 to #48).
+                  Lobbies currently open for players to register and pick seats (#1 to #48).
                 </p>
               </div>
               <button
                 onClick={() => setActiveTab('create')}
                 className="px-3 py-1.5 rounded-xl bg-silver-gradient text-black font-black text-xs uppercase tracking-wider transition hover:brightness-110 flex items-center space-x-1"
               >
-                <span>+ Create Tournament</span>
+                <span>+ Create New Match</span>
               </button>
             </div>
 
             {openMatches.length === 0 ? (
               <div className="p-8 text-center bg-[#0c0c10] border border-zinc-800 rounded-2xl space-y-3">
-                <p className="text-xs text-zinc-400">No open tournaments currently accepting registrations.</p>
+                <p className="text-xs text-zinc-400">No open matches right now.</p>
                 <button
                   onClick={() => setActiveTab('create')}
                   className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold rounded-xl transition"
                 >
-                  Launch a New Tournament
+                  Create a Match
                 </button>
               </div>
             ) : (
@@ -979,14 +996,14 @@ export default function AdminDashboard() {
                 {openMatches.map((t) => {
                   const percentFilled = Math.min(100, Math.round((t.filled_teams / t.total_teams) * 100));
                   return (
-                    <div key={t.id} className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3.5 shadow-lg">
+                    <div key={t.id} className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3 shadow-lg">
                       <div>
                         <div className="flex justify-between items-start gap-2">
                           <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                             {t.game_name} • {t.format.toUpperCase()}
                           </span>
                           <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            OPEN REGISTRATION
+                            JOINING OPEN
                           </span>
                         </div>
 
@@ -999,10 +1016,10 @@ export default function AdminDashboard() {
                           <span>Pool: ₹{t.prize_pool}</span>
                         </div>
 
-                        {/* Live Slots Capacity Bar */}
+                        {/* Seat counter bar */}
                         <div className="mt-3 bg-[#121218] p-3 rounded-xl border border-zinc-800 space-y-1.5">
                           <div className="flex justify-between items-center text-xs">
-                            <span className="text-zinc-500 uppercase font-bold text-[10px]">Seat Capacity:</span>
+                            <span className="text-zinc-500 uppercase font-bold text-[10px]">Seats Booked:</span>
                             <span className="font-mono font-bold text-white">
                               {t.filled_teams} / {t.total_teams} ({t.remaining_teams} seats open)
                             </span>
@@ -1014,59 +1031,20 @@ export default function AdminDashboard() {
                             />
                           </div>
                         </div>
-
-                        {/* Pre-enter credentials or quick options */}
-                        <div className="mt-3 bg-[#14141d] p-2.5 rounded-xl border border-zinc-800 space-y-2">
-                          <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
-                            Preload Room Credentials:
-                          </span>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              placeholder="Room ID"
-                              value={credentials[t.id]?.roomId || ''}
-                              onChange={(e) =>
-                                setCredentials({
-                                  ...credentials,
-                                  [t.id]: { ...(credentials[t.id] || {}), roomId: e.target.value },
-                                })
-                              }
-                              className="bg-[#0a0a0e] border border-zinc-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-zinc-400 font-mono"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Password"
-                              value={credentials[t.id]?.roomPassword || ''}
-                              onChange={(e) =>
-                                setCredentials({
-                                  ...credentials,
-                                  [t.id]: { ...(credentials[t.id] || {}), roomPassword: e.target.value },
-                                })
-                              }
-                              className="bg-[#0a0a0e] border border-zinc-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-zinc-400 font-mono"
-                            />
-                          </div>
-                        </div>
                       </div>
 
-                      {/* Footer Actions */}
+                      {/* Actions */}
                       <div className="space-y-2 pt-2 border-t border-zinc-800/80">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleSaveCredentials(t.id)}
-                            className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-lg transition"
-                          >
-                            Save Credentials
-                          </button>
-                          <button
                             onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                            className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
+                            className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
                           >
-                            {expandedRosterId === t.id ? 'Hide' : `Roster (${t.teams?.length || 0})`}
+                            {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
                           </button>
                           <button
                             onClick={() => handleDeleteTournament(t)}
-                            title="Delete Lobby"
+                            title="Delete Match"
                             className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-300 rounded-lg border border-red-800/80 transition"
                           >
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1076,31 +1054,7 @@ export default function AdminDashboard() {
                           </button>
                         </div>
 
-                        {/* Expandable Roster Slot Inspector */}
-                        {expandedRosterId === t.id && (
-                          <div className="bg-[#08080c] p-2.5 rounded-xl border border-zinc-800 max-h-48 overflow-y-auto space-y-1.5 text-xs">
-                            <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
-                              Booked Teams:
-                            </span>
-                            {t.teams?.length === 0 ? (
-                              <p className="text-[11px] text-zinc-500">No slots booked yet.</p>
-                            ) : (
-                              t.teams?.map((team) => (
-                                <div key={team.id} className="p-1.5 bg-[#101016] rounded border border-zinc-800 flex justify-between items-center">
-                                  <span className="font-mono text-[11px] text-white">
-                                    Slot #{team.slot_number}: {team.team_name} ({team.leader_name})
-                                  </span>
-                                  <button
-                                    onClick={() => handleRemoveTeam(t.id, team)}
-                                    className="px-1.5 py-0.5 rounded bg-red-950 hover:bg-red-800 text-[9px] font-bold text-red-300"
-                                  >
-                                    Kick
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
+                        {renderParticipantRoster(t)}
                       </div>
                     </div>
                   );
@@ -1111,35 +1065,38 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: LIVE ONGOING MATCHES (IN PROGRESS)                                 */}
+        {/* TAB 3: LIVE MATCHES (PLAYING NOW - ENTER WINNER DIRECTLY ON THE CARD)     */}
         {/* ========================================================================= */}
-        {activeTab === 'ongoing' && (
+        {activeTab === 'live' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-base font-bold text-white">Live Ongoing Matches ({ongoingMatches.length})</h2>
+              <h2 className="text-base font-bold text-white">Step 3 & 4: Live Matches In Progress ({liveMatches.length})</h2>
               <p className="text-xs text-zinc-400">
-                Matches currently playing with room credentials dispatched. Once the match finishes in-game, click "Declare Winners & Payouts" to finalize.
+                Players are currently in-game. When the match ends, simply click <strong>"Match Over? Enter Winner & Give Prize"</strong> below to pay winners instantly.
               </p>
             </div>
 
-            {ongoingMatches.length === 0 ? (
+            {liveMatches.length === 0 ? (
               <div className="p-8 text-center bg-[#0c0c10] border border-zinc-800 rounded-2xl space-y-2">
                 <svg className="w-8 h-8 text-zinc-600 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
-                <p className="text-xs text-zinc-400 font-bold">No matches are currently ongoing.</p>
+                <p className="text-xs text-zinc-400 font-bold">No matches are playing live right now.</p>
+                <p className="text-[11px] text-zinc-500">
+                  Matches move here after you share the Room ID & Password in Tab 1.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {ongoingMatches.map((t) => (
-                  <div key={t.id} className="bg-[#0c0c10] border border-blue-500/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3.5 shadow-xl">
+                {liveMatches.map((t) => (
+                  <div key={t.id} className="bg-[#0c0c10] border-2 border-blue-500/60 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3.5 shadow-2xl">
                     <div>
                       <div className="flex justify-between items-start gap-2">
                         <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                           {t.game_name} • {t.format.toUpperCase()}
                         </span>
                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 animate-pulse">
-                          LIVE IN-GAME
+                          PLAYING NOW
                         </span>
                       </div>
 
@@ -1159,42 +1116,30 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-zinc-800">
+                      {/* Big Prominent Action to Enter Winner */}
                       <button
-                        onClick={() => {
-                          setSelectedResultMatchId(t.id.toString());
-                          setActiveTab('results');
-                        }}
-                        className="w-full py-2 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-lg transition hover:brightness-110 shadow-md"
+                        onClick={() => handleOpenWinnerModal(t)}
+                        className="w-full py-2.5 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg flex items-center justify-center space-x-1.5"
                       >
-                        Declare Winners & Payouts
+                        <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                          <path d="M4 22h16" />
+                          <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+                          <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+                          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                        </svg>
+                        <span>Match Over? Enter Winner & Give Prize</span>
                       </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleCopyAllUIDs(t)}
-                          className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
-                        >
-                          {copiedUIDsId === t.id ? 'UIDs Copied!' : 'Copy UIDs'}
-                        </button>
-                        <button
-                          onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                          className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
-                        >
-                          {expandedRosterId === t.id ? 'Hide' : `Roster (${t.teams?.length || 0})`}
-                        </button>
-                      </div>
 
-                      {expandedRosterId === t.id && (
-                        <div className="bg-[#08080c] p-2.5 rounded-xl border border-zinc-800 max-h-48 overflow-y-auto space-y-1.5 text-xs">
-                          {t.teams?.map((team) => (
-                            <div key={team.id} className="p-1.5 bg-[#101016] rounded border border-zinc-800 text-[11px] text-zinc-300">
-                              <span className="font-bold text-white">Slot #{team.slot_number}: {team.team_name}</span>
-                              <div className="font-mono text-[10px] text-zinc-400">
-                                {team.players?.map((p) => p.in_game_name + ' (' + p.in_game_id + ')').join(', ')}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <button
+                        onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
+                        className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
+                      >
+                        {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
+                      </button>
+
+                      {renderParticipantRoster(t)}
                     </div>
                   </div>
                 ))}
@@ -1204,14 +1149,14 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: FINISHED MATCHES (WINNERS & HISTORY AUDIT)                         */}
+        {/* TAB 4: COMPLETED MATCHES (WINNERS & HISTORY)                              */}
         {/* ========================================================================= */}
         {activeTab === 'completed' && (
           <div className="space-y-4">
             <div>
               <h2 className="text-base font-bold text-white">Finished Matches ({completedMatches.length})</h2>
               <p className="text-xs text-zinc-400">
-                Matches that have been finalized and prize amounts credited to player wallets.
+                Matches that have finished and prize money has been transferred to player wallets.
               </p>
             </div>
 
@@ -1243,7 +1188,7 @@ export default function AdminDashboard() {
                         <span>•</span>
                         <span>Fee: ₹{t.entry_fee}</span>
                         <span>•</span>
-                        <span>Prize Pool: ₹{t.prize_pool}</span>
+                        <span>Pool: ₹{t.prize_pool}</span>
                       </div>
 
                       <div className="mt-3 bg-[#121218] p-3 rounded-xl border border-zinc-800 text-xs space-y-1">
@@ -1252,34 +1197,22 @@ export default function AdminDashboard() {
                           <span className="font-mono font-bold text-white">{t.filled_teams} / {t.total_teams}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-zinc-500">Room ID / Pass:</span>
-                          <span className="font-mono text-zinc-300">{t.room_id || 'N/A'} / {t.room_password || 'N/A'}</span>
+                          <span className="text-zinc-500">Prizes:</span>
+                          <span className="font-mono text-emerald-400 font-bold">Paid to Winner Wallets</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                      <span className="text-[11px] text-emerald-400 font-bold">Prizes Distributed</span>
+                    <div className="pt-2 border-t border-zinc-800">
                       <button
                         onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                        className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
+                        className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
                       >
-                        {expandedRosterId === t.id ? 'Hide Roster' : `Roster (${t.teams?.length || 0})`}
+                        {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
                       </button>
-                    </div>
 
-                    {expandedRosterId === t.id && (
-                      <div className="bg-[#08080c] p-2.5 rounded-xl border border-zinc-800 max-h-48 overflow-y-auto space-y-1.5 text-xs">
-                        {t.teams?.map((team) => (
-                          <div key={team.id} className="p-1.5 bg-[#101016] rounded border border-zinc-800 text-[11px] text-zinc-300">
-                            <span className="font-bold text-white">Slot #{team.slot_number}: {team.team_name}</span>
-                            <div className="font-mono text-[10px] text-zinc-400">
-                              Captain: {team.leader_name} ({team.leader_phone || 'N/A'})
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      {renderParticipantRoster(t)}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1288,215 +1221,15 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: DECLARE RESULTS & AUTOMATED PRIZE PAYOUT                           */}
-        {/* ========================================================================= */}
-        {activeTab === 'results' && (
-          <div className="max-w-3xl mx-auto bg-[#0c0c10] border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 block">
-                Automated Settlement
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
-                Declare Match Winners & <span className="text-silver">Atomic Payouts</span>
-              </h2>
-              <p className="text-xs text-zinc-400 mt-1">
-                Select the tournament and assign Rank 1 (Booyah), 2, 3, plus per-kill counts. Cash prizes will be transferred directly into winner wallets instantaneously.
-              </p>
-            </div>
-
-            <form onSubmit={handleDeclareResults} className="space-y-5">
-              {/* Select Tournament */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                  Select Match to Finalize *
-                </label>
-                <select
-                  value={selectedResultMatchId}
-                  onChange={(e) => {
-                    setSelectedResultMatchId(e.target.value);
-                    setClashWinnerTeamId('');
-                    setBrRank1TeamId('');
-                    setBrRank2TeamId('');
-                    setBrRank3TeamId('');
-                    setKillBounties({});
-                  }}
-                  className="w-full bg-[#121218] border border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-zinc-400 font-mono"
-                >
-                  <option value="">-- Choose Live or Ready Tournament --</option>
-                  {tournaments
-                    .filter((t) => t.status !== 'completed')
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        Match #{t.id} • {t.title} ({t.format.toUpperCase()} - {t.filled_teams} Teams)
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {/* Dynamic Winner Selection */}
-              {selectedResultMatchId && (() => {
-                const match = tournaments.find((t) => t.id === parseInt(selectedResultMatchId));
-                if (!match) return null;
-
-                const matchTeams = match.teams || [];
-
-                if (matchTeams.length === 0) {
-                  return (
-                    <div className="p-4 rounded-xl bg-amber-950/30 border border-amber-800 text-amber-300 text-xs">
-                      No teams registered in this tournament yet. Cannot finalize empty tournament.
-                    </div>
-                  );
-                }
-
-                if (match.match_type === 'clash') {
-                  return (
-                    <div className="space-y-4 p-4 rounded-2xl bg-[#121218] border border-zinc-800">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider block">
-                        Clash Squad (4v4) Winner
-                      </span>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">
-                          Winning Team (Receives ₹{match.first_prize || match.prize_pool}) *
-                        </label>
-                        <select
-                          value={clashWinnerTeamId}
-                          onChange={(e) => setClashWinnerTeamId(e.target.value)}
-                          className="w-full bg-[#0a0a0e] border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                        >
-                          <option value="">-- Select Winner --</option>
-                          {matchTeams.map((team) => (
-                            <option key={team.id} value={team.id}>
-                              Slot #{team.slot_number}: {team.team_name} (Captain: {team.leader_name})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-5 p-5 rounded-2xl bg-[#121218] border border-zinc-800">
-                    <span className="text-xs font-bold text-white uppercase tracking-wider block">
-                      Battle Royale Rank Positions
-                    </span>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-amber-400 block mb-1">
-                          Rank #1 Booyah (₹{match.first_prize}) *
-                        </label>
-                        <select
-                          value={brRank1TeamId}
-                          onChange={(e) => setBrRank1TeamId(e.target.value)}
-                          className="w-full bg-[#0a0a0e] border border-amber-600/50 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                        >
-                          <option value="">-- Select 1st --</option>
-                          {matchTeams.map((team) => (
-                            <option key={team.id} value={team.id}>
-                              Slot #{team.slot_number}: {team.team_name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-zinc-300 block mb-1">
-                          Rank #2 Runner-up (₹{match.second_prize})
-                        </label>
-                        <select
-                          value={brRank2TeamId}
-                          onChange={(e) => setBrRank2TeamId(e.target.value)}
-                          className="w-full bg-[#0a0a0e] border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                        >
-                          <option value="">-- Select 2nd --</option>
-                          {matchTeams.map((team) => (
-                            <option key={team.id} value={team.id}>
-                              Slot #{team.slot_number}: {team.team_name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-amber-700 block mb-1">
-                          Rank #3 (₹{match.third_prize})
-                        </label>
-                        <select
-                          value={brRank3TeamId}
-                          onChange={(e) => setBrRank3TeamId(e.target.value)}
-                          className="w-full bg-[#0a0a0e] border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                        >
-                          <option value="">-- Select 3rd --</option>
-                          {matchTeams.map((team) => (
-                            <option key={team.id} value={team.id}>
-                              Slot #{team.slot_number}: {team.team_name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Per-Kill Frag Bounties */}
-                    {parseFloat(match.per_kill_prize || 0) > 0 && (
-                      <div className="pt-3 border-t border-zinc-800 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] uppercase font-bold text-zinc-400">
-                            Frag Bounties (@ ₹{match.per_kill_prize} / kill):
-                          </span>
-                        </div>
-                        <div className="max-h-52 overflow-y-auto space-y-1.5 p-2 bg-[#0a0a0e] rounded-xl border border-zinc-800">
-                          {matchTeams.map((team) => (
-                            <div key={team.id} className="flex justify-between items-center text-xs px-2 py-1 bg-[#121218] rounded">
-                              <span className="font-mono text-zinc-300">
-                                Slot #{team.slot_number}: {team.team_name}
-                              </span>
-                              <div className="flex items-center space-x-1.5">
-                                <span className="text-[10px] text-zinc-500">Kills:</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="0"
-                                  value={killBounties[team.id] || ''}
-                                  onChange={(e) =>
-                                    setKillBounties({
-                                      ...killBounties,
-                                      [team.id]: e.target.value,
-                                    })
-                                  }
-                                  className="w-16 bg-black border border-zinc-700 rounded px-2 py-0.5 text-center font-mono text-white text-xs"
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              <button
-                type="submit"
-                disabled={submitting || !selectedResultMatchId}
-                className="w-full py-3 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg disabled:opacity-50"
-              >
-                {submitting ? 'Executing Atomic Wallet Payouts...' : 'Finalize Match & Payout Wallets Instantly'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 6: CASHOUT DESK (UPI WITHDRAWALS)                                     */}
+        {/* TAB 5: UPI WITHDRAWALS                                                    */}
         {/* ========================================================================= */}
         {activeTab === 'withdrawals' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold text-white">UPI Cashout Desk ({withdrawals.length})</h2>
+                <h2 className="text-base font-bold text-white">Player UPI Cashouts ({withdrawals.length})</h2>
                 <p className="text-xs text-zinc-400">
-                  Manage player winning balance withdrawals. Transfer funds to their UPI ID, enter UTR number, and approve.
+                  Send UPI payment to the player's UPI ID, enter UTR number, and click Approve.
                 </p>
               </div>
 
@@ -1518,7 +1251,7 @@ export default function AdminDashboard() {
 
             {filteredWithdrawals.length === 0 ? (
               <div className="p-8 text-center bg-[#0c0c10] border border-zinc-800 rounded-2xl">
-                <p className="text-xs text-zinc-400">No withdrawal requests matching the selected filter.</p>
+                <p className="text-xs text-zinc-400">No withdrawal requests matching this filter.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1546,7 +1279,7 @@ export default function AdminDashboard() {
                         <p className="text-[11px] text-zinc-500 font-mono">{w.user_email}</p>
                       </div>
 
-                      {/* UPI ID Card */}
+                      {/* UPI ID Box */}
                       <div className="mt-3 bg-[#121218] p-2.5 rounded-xl border border-zinc-800 flex justify-between items-center text-xs">
                         <span className="font-mono text-zinc-200 select-all font-bold">{w.upi_id}</span>
                         <button
@@ -1558,7 +1291,6 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Pending Action Bar */}
                     {w.status === 'pending' ? (
                       <div className="space-y-2 pt-2 border-t border-zinc-800">
                         <input
@@ -1598,7 +1330,7 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 7: PLAYERS & AFFILIATES (SUPERUSER AUTHORITY & USER EDITING)          */}
+        {/* TAB 6: PLAYERS & AFFILIATES                                              */}
         {/* ========================================================================= */}
         {activeTab === 'players' && (
           <div className="space-y-4">
@@ -1606,7 +1338,7 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-base font-bold text-white">Players & Affiliates Directory ({users.length})</h2>
                 <p className="text-xs text-zinc-400">
-                  Superuser management: Search, edit balance/role, ban/unban, or delete accounts completely.
+                  Search players, edit their wallet balance or role, ban or delete accounts.
                 </p>
               </div>
 
@@ -1632,7 +1364,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Comprehensive Superuser Table */}
+            {/* Table */}
             <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-zinc-300">
@@ -1690,7 +1422,6 @@ export default function AdminDashboard() {
                           <div className="flex items-center justify-end space-x-1.5 font-sans">
                             <button
                               onClick={() => handleOpenEditUser(u)}
-                              title="Edit User Details & Balance"
                               className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-bold rounded transition"
                             >
                               Edit
@@ -1708,7 +1439,7 @@ export default function AdminDashboard() {
                             {u.role !== 'admin' && (
                               <button
                                 onClick={() => handleDeleteUser(u)}
-                                title="Delete user completely"
+                                title="Delete user"
                                 className="p-1 bg-red-950/60 hover:bg-red-800 text-red-300 rounded border border-red-800 transition"
                               >
                                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1726,7 +1457,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* EDIT USER MODAL */}
+            {/* Edit User Modal */}
             {editingUser && (
               <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
                 <motion.div
@@ -1737,7 +1468,7 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
                     <div>
                       <h3 className="text-base font-bold text-white">Edit User #{editingUser.id}</h3>
-                      <p className="text-xs text-zinc-400">Modify credentials, role, status, and wallet balances</p>
+                      <p className="text-xs text-zinc-400">Change details and adjust wallet balance</p>
                     </div>
                     <button
                       onClick={() => setEditingUser(null)}
@@ -1783,7 +1514,7 @@ export default function AdminDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Referral / Affiliate Code</label>
+                        <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Referral / Code</label>
                         <input
                           type="text"
                           value={editFormData.referral_code}
@@ -1807,7 +1538,7 @@ export default function AdminDashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Account Status</label>
+                        <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Status</label>
                         <select
                           value={editFormData.status}
                           onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
@@ -1819,10 +1550,10 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Direct Wallet Balances Adjustment */}
+                    {/* Direct Wallet Adjustments */}
                     <div className="pt-2 border-t border-zinc-800 space-y-2">
                       <span className="text-[10px] font-bold uppercase text-zinc-400 block tracking-wider">
-                        Direct Wallet Balance Adjustments (₹ INR):
+                        Wallet Balances (₹):
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
@@ -1871,7 +1602,7 @@ export default function AdminDashboard() {
                         disabled={submitting}
                         className="flex-1 py-2 bg-silver-gradient text-black font-black uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg"
                       >
-                        {submitting ? 'Saving...' : 'Save User Changes'}
+                        {submitting ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
                   </form>
@@ -1882,14 +1613,14 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 8: TOURNAMENT LAUNCHER (1-CLICK PRESETS & CUSTOM)                      */}
+        {/* TAB 7: CREATE NEW MATCH                                                   */}
         {/* ========================================================================= */}
         {activeTab === 'create' && (
           <div className="max-w-3xl mx-auto space-y-6">
             {/* 1-Click Fast Presets */}
             <div className="bg-[#0c0c10] border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-3">
               <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block">
-                Instant Presets (1-Click Fill)
+                1-Click Presets:
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
@@ -1898,7 +1629,7 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">FF Solo 48</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹25 Entry • 48 Slots</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">₹25 Fee • 48 Slots</span>
                 </button>
                 <button
                   type="button"
@@ -1906,7 +1637,7 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">FF Duo 2v2</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹60 Entry • 24 Duos</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">₹60 Fee • 24 Duos</span>
                 </button>
                 <button
                   type="button"
@@ -1914,7 +1645,7 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">FF CS 4v4</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹100 Entry • 2 Teams</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">₹100 Fee • 2 Teams</span>
                 </button>
                 <button
                   type="button"
@@ -1922,7 +1653,7 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">PUBG Squad</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹200 Entry • 12 Squads</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">₹200 Fee • 12 Teams</span>
                 </button>
               </div>
             </div>
@@ -1930,18 +1661,14 @@ export default function AdminDashboard() {
             {/* Custom Form */}
             <div className="bg-[#0c0c10] border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 block">
-                  New Lobby Setup
-                </span>
-                <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
-                  Launch Custom <span className="text-silver">Tournament Lobby</span>
-                </h2>
+                <h2 className="text-xl sm:text-2xl font-black text-white">Create New Match</h2>
+                <p className="text-xs text-zinc-400 mt-1">Fill in the details to publish a new tournament on the website.</p>
               </div>
 
               <form onSubmit={handleCreateTournament} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Game Platform *</label>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Game *</label>
                     <select
                       value={createForm.gameId}
                       onChange={(e) => setCreateForm({ ...createForm, gameId: parseInt(e.target.value) })}
@@ -1978,7 +1705,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Tournament Title *</label>
+                  <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Match Title *</label>
                   <input
                     type="text"
                     required
@@ -2103,10 +1830,186 @@ export default function AdminDashboard() {
                   disabled={submitting}
                   className="w-full py-3 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg disabled:opacity-50 mt-2"
                 >
-                  {submitting ? 'Creating Lobby...' : 'Publish Tournament Lobby'}
+                  {submitting ? 'Creating Match...' : 'Publish Match'}
                 </button>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STEP 4: ENTER WINNER & GIVE PRIZE MODAL (OPENS DIRECTLY ON A LIVE MATCH) */}
+        {/* ========================================================================= */}
+        {declaringWinnerMatch && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-xl bg-[#0e0e14] border border-zinc-700 rounded-3xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-start pb-3 border-b border-zinc-800">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
+                    Step 4: Enter Match Winners & Give Prize
+                  </span>
+                  <h3 className="text-base font-bold text-white mt-0.5">
+                    Match #{declaringWinnerMatch.id}: {declaringWinnerMatch.title}
+                  </h3>
+                  <div className="flex items-center space-x-2 text-[11px] text-zinc-400 font-mono mt-1">
+                    <span>1st Prize: ₹{declaringWinnerMatch.first_prize || declaringWinnerMatch.prize_pool}</span>
+                    {declaringWinnerMatch.second_prize > 0 && <span>• 2nd: ₹{declaringWinnerMatch.second_prize}</span>}
+                    {declaringWinnerMatch.third_prize > 0 && <span>• 3rd: ₹{declaringWinnerMatch.third_prize}</span>}
+                    {declaringWinnerMatch.per_kill_prize > 0 && <span>• ₹{declaringWinnerMatch.per_kill_prize}/kill</span>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDeclaringWinnerMatch(null)}
+                  className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {declaringWinnerMatch.teams?.length === 0 ? (
+                <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-800 text-amber-300 text-xs">
+                  No teams registered in this match. Cannot declare winners.
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitWinner} className="space-y-4 text-xs">
+                  {declaringWinnerMatch.match_type === 'clash' ? (
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-zinc-300 mb-1">
+                        Select Winning Squad (Gets ₹{declaringWinnerMatch.first_prize || declaringWinnerMatch.prize_pool}) *
+                      </label>
+                      <select
+                        value={clashWinnerTeamId}
+                        onChange={(e) => setClashWinnerTeamId(e.target.value)}
+                        className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      >
+                        <option value="">-- Choose Winning Team --</option>
+                        {declaringWinnerMatch.teams?.map((team) => (
+                          <option key={team.id} value={team.id}>
+                            Slot #{team.slot_number}: {team.team_name} (Captain: {team.leader_name})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-amber-400 mb-1">
+                          1st Place Winner (Booyah) — Receives ₹{declaringWinnerMatch.first_prize} *
+                        </label>
+                        <select
+                          value={brRank1TeamId}
+                          onChange={(e) => setBrRank1TeamId(e.target.value)}
+                          className="w-full bg-[#14141d] border border-amber-600/60 rounded-xl px-3 py-2 text-white font-mono"
+                        >
+                          <option value="">-- Choose 1st Place Team --</option>
+                          {declaringWinnerMatch.teams?.map((team) => (
+                            <option key={team.id} value={team.id}>
+                              Slot #{team.slot_number}: {team.team_name} (Captain: {team.leader_name})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-zinc-300 mb-1">
+                            2nd Place — Receives ₹{declaringWinnerMatch.second_prize || 0}
+                          </label>
+                          <select
+                            value={brRank2TeamId}
+                            onChange={(e) => setBrRank2TeamId(e.target.value)}
+                            className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                          >
+                            <option value="">-- Optional 2nd Place --</option>
+                            {declaringWinnerMatch.teams?.map((team) => (
+                              <option key={team.id} value={team.id}>
+                                Slot #{team.slot_number}: {team.team_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-700 mb-1">
+                            3rd Place — Receives ₹{declaringWinnerMatch.third_prize || 0}
+                          </label>
+                          <select
+                            value={brRank3TeamId}
+                            onChange={(e) => setBrRank3TeamId(e.target.value)}
+                            className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                          >
+                            <option value="">-- Optional 3rd Place --</option>
+                            {declaringWinnerMatch.teams?.map((team) => (
+                              <option key={team.id} value={team.id}>
+                                Slot #{team.slot_number}: {team.team_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Optional Kills */}
+                      {parseFloat(declaringWinnerMatch.per_kill_prize || 0) > 0 && (
+                        <div className="pt-2 border-t border-zinc-800 space-y-1.5">
+                          <label className="block text-[10px] uppercase font-bold text-zinc-400">
+                            Team Kills (Optional — ₹{declaringWinnerMatch.per_kill_prize} per kill):
+                          </label>
+                          <div className="max-h-44 overflow-y-auto space-y-1 p-2 bg-[#08080c] rounded-xl border border-zinc-800">
+                            {declaringWinnerMatch.teams?.map((team) => (
+                              <div key={team.id} className="flex justify-between items-center text-xs px-2 py-1 bg-[#121218] rounded">
+                                <span className="font-mono text-zinc-300">
+                                  Slot #{team.slot_number}: {team.team_name}
+                                </span>
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-[10px] text-zinc-500">Kills:</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={killBounties[team.id] || ''}
+                                    onChange={(e) =>
+                                      setKillBounties({
+                                        ...killBounties,
+                                        [team.id]: e.target.value,
+                                      })
+                                    }
+                                    className="w-16 bg-black border border-zinc-700 rounded px-2 py-0.5 text-center font-mono text-white text-xs"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setDeclaringWinnerMatch(null)}
+                      className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-1 py-2.5 bg-silver-gradient text-black font-black uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg disabled:opacity-50"
+                    >
+                      {submitting ? 'Paying Winners...' : 'Pay Winners & Complete Match'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
           </div>
         )}
       </main>
