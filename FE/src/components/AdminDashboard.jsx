@@ -889,8 +889,20 @@ export default function AdminDashboard() {
       ),
     },
     {
+      id: 'analytics',
+      label: '5. Analytics & Revenue',
+      count: 'LIVE',
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+      ),
+    },
+    {
       id: 'withdrawals',
-      label: '5. UPI Withdrawals',
+      label: '6. UPI Withdrawals',
       count: analytics?.withdrawals?.pendingCount || null,
       alert: (analytics?.withdrawals?.pendingCount || 0) > 0,
       icon: (
@@ -902,7 +914,7 @@ export default function AdminDashboard() {
     },
     {
       id: 'players',
-      label: '6. Players & Affiliates',
+      label: '7. Players & Affiliates',
       count: `${users.length}`,
       icon: (
         <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -915,7 +927,7 @@ export default function AdminDashboard() {
     },
     {
       id: 'create',
-      label: '7. + New Match',
+      label: '8. + New Match',
       isSpecial: true,
       icon: (
         <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -1801,7 +1813,375 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: UPI WITHDRAWALS                                                    */}
+        {/* TAB 5: BUSINESS ANALYTICS & REVENUE INTELLIGENCE                          */}
+        {/* ========================================================================= */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {/* Header with Title & Refresh */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-lg font-black text-white">Business Analytics & Growth Intelligence</h2>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[9px] font-mono font-bold text-emerald-400">
+                    Live Data
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Real-time revenue, player acquisition rates, month-over-month comparisons, and game performance.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={loadAllAdminData}
+                  className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs font-bold text-zinc-300 hover:text-white transition flex items-center space-x-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                  <span>Sync Metrics</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 1. TOP 4 KEY METRIC CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Gross Revenue */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-2 shadow-lg relative overflow-hidden">
+                <div className="flex justify-between items-start">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400">Total Fees Collected</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-mono font-bold border border-emerald-500/30">
+                    +{analytics?.comparisons?.monthFeesGrowth || 100}% MoM
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  ₹{analytics?.finances?.entryCollected?.toLocaleString('en-IN') || 0}
+                </div>
+                <p className="text-[11px] text-zinc-500">Gross match bookings across all games</p>
+              </div>
+
+              {/* Net Profit */}
+              <div className="bg-gradient-to-br from-emerald-950/30 via-[#0e1411] to-[#0c0c10] border border-emerald-500/40 rounded-2xl p-4 sm:p-5 space-y-2 shadow-xl">
+                <div className="flex justify-between items-start">
+                  <span className="text-[10px] uppercase font-bold text-emerald-300">House Net Profit</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-400 text-black text-[10px] font-mono font-black">
+                    {analytics?.finances?.profitMarginPct || 0}% Margin
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
+                  +₹{analytics?.finances?.netProfit?.toLocaleString('en-IN') || 0}
+                </div>
+                <p className="text-[11px] text-emerald-500/80">Net money kept after all prize payouts</p>
+              </div>
+
+              {/* Total Players */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-2 shadow-lg">
+                <div className="flex justify-between items-start">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400">Registered Players</span>
+                  <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 text-[10px] font-mono font-bold border border-blue-500/30">
+                    +{analytics?.comparisons?.monthPlayersGrowth || 100}% Growth
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {analytics?.users?.total_players || 0} Players
+                </div>
+                <p className="text-[11px] text-zinc-500">
+                  {analytics?.comparisons?.thisMonthPlayers || 0} new players registered this month
+                </p>
+              </div>
+
+              {/* Total Prizes Paid */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-2 shadow-lg">
+                <div className="flex justify-between items-start">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400">Total Prizes Paid</span>
+                  <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[10px] font-mono font-bold border border-amber-500/30">
+                    Atomic
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
+                  ₹{analytics?.finances?.prizesPaid?.toLocaleString('en-IN') || 0}
+                </div>
+                <p className="text-[11px] text-zinc-500">Credited directly to winner wallets</p>
+              </div>
+            </div>
+
+            {/* 2. MONTH-OVER-MONTH & WEEK-OVER-WEEK COMPARISONS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Monthly Run Rate */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-5 space-y-3.5 shadow-lg">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    Monthly Performance Compare
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400">This Month vs Last Month</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 font-mono">
+                  <div className="p-3 bg-[#121218] rounded-xl border border-zinc-800/80">
+                    <span className="text-[9px] uppercase font-bold text-zinc-500 block">Revenue This Month</span>
+                    <span className="text-lg font-bold text-white">
+                      ₹{analytics?.comparisons?.thisMonthFees || 0}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">
+                      Last Month: ₹{analytics?.comparisons?.lastMonthFees || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#121218] rounded-xl border border-zinc-800/80">
+                    <span className="text-[9px] uppercase font-bold text-zinc-500 block">New Players Added</span>
+                    <span className="text-lg font-bold text-blue-400">
+                      +{analytics?.comparisons?.thisMonthPlayers || 0}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">
+                      Last Month: {analytics?.comparisons?.lastMonthPlayers || 0}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-600/40 flex justify-between items-center text-xs">
+                  <span className="text-zinc-300 font-bold">Month-over-Month Revenue Growth:</span>
+                  <span className="font-mono font-black text-emerald-400 text-sm">
+                    +{analytics?.comparisons?.monthFeesGrowth || 100}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Weekly Velocity */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-5 space-y-3.5 shadow-lg">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    Weekly Velocity Compare
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400">Last 7 Days vs Prior 7 Days</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 font-mono">
+                  <div className="p-3 bg-[#121218] rounded-xl border border-zinc-800/80">
+                    <span className="text-[9px] uppercase font-bold text-zinc-500 block">Revenue This Week</span>
+                    <span className="text-lg font-bold text-white">
+                      ₹{analytics?.comparisons?.thisWeekFees || 0}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">
+                      Prior Week: ₹{analytics?.comparisons?.lastWeekFees || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#121218] rounded-xl border border-zinc-800/80">
+                    <span className="text-[9px] uppercase font-bold text-zinc-500 block">New Players This Week</span>
+                    <span className="text-lg font-bold text-blue-400">
+                      +{analytics?.comparisons?.thisWeekPlayers || 0}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">
+                      Prior Week: {analytics?.comparisons?.lastWeekPlayers || 0}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-600/40 flex justify-between items-center text-xs">
+                  <span className="text-zinc-300 font-bold">Week-over-Week Revenue Pace:</span>
+                  <span className="font-mono font-black text-emerald-400 text-sm">
+                    +{analytics?.comparisons?.weekFeesGrowth || 100}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. VISUAL MONTHLY REVENUE & PROFIT BAR CHART */}
+            <div className="bg-[#0c0c10] border border-zinc-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-zinc-800">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-white block">
+                    6-Month Revenue & Profit Trend
+                  </span>
+                  <span className="text-[11px] text-zinc-400">
+                    Monthly entry fee collection vs prize payouts vs net house profit
+                  </span>
+                </div>
+                {/* Legend */}
+                <div className="flex items-center space-x-3 text-[10px] font-mono">
+                  <div className="flex items-center space-x-1">
+                    <span className="w-2.5 h-2.5 rounded bg-emerald-500" />
+                    <span className="text-zinc-300">Fees Collected</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="w-2.5 h-2.5 rounded bg-amber-500" />
+                    <span className="text-zinc-300">Prizes Paid</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="w-2.5 h-2.5 rounded bg-white" />
+                    <span className="text-zinc-300">Net Profit</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visual Bars Container */}
+              {(() => {
+                const trend = analytics?.monthlyTrend || [];
+                const maxVal = Math.max(1, ...trend.map((m) => Math.max(m.fees, m.prizes, m.profit)));
+
+                return (
+                  <div className="grid grid-cols-6 gap-2 sm:gap-4 pt-4 pb-2 items-end min-h-[220px]">
+                    {trend.map((m) => {
+                      const feeHeight = Math.max(8, Math.round((m.fees / maxVal) * 100));
+                      const prizeHeight = Math.max(8, Math.round((m.prizes / maxVal) * 100));
+                      const profitHeight = Math.max(8, Math.round((m.profit / maxVal) * 100));
+
+                      return (
+                        <div key={m.monthKey} className="flex flex-col items-center space-y-2 group">
+                          {/* Top Value Tooltip */}
+                          <div className="text-[9px] font-mono text-zinc-400 group-hover:text-white transition text-center">
+                            {m.fees > 0 ? `₹${m.fees}` : '₹0'}
+                          </div>
+
+                          {/* Bars Container */}
+                          <div className="w-full bg-[#121218] rounded-xl p-1.5 h-36 flex items-end justify-center space-x-1 sm:space-x-1.5 border border-zinc-800/80">
+                            {/* Fees Bar */}
+                            <div
+                              title={`Fees Collected: ₹${m.fees}`}
+                              style={{ height: `${m.fees > 0 ? feeHeight : 4}%` }}
+                              className="w-1/3 bg-emerald-500 rounded-t transition-all duration-500 hover:brightness-125"
+                            />
+                            {/* Prizes Bar */}
+                            <div
+                              title={`Prizes Paid: ₹${m.prizes}`}
+                              style={{ height: `${m.prizes > 0 ? prizeHeight : 4}%` }}
+                              className="w-1/3 bg-amber-500 rounded-t transition-all duration-500 hover:brightness-125"
+                            />
+                            {/* Profit Bar */}
+                            <div
+                              title={`Net Profit: ₹${m.profit}`}
+                              style={{ height: `${m.profit > 0 ? profitHeight : 4}%` }}
+                              className="w-1/3 bg-white rounded-t transition-all duration-500 hover:brightness-125"
+                            />
+                          </div>
+
+                          {/* Month Label */}
+                          <span className="text-[11px] font-mono font-bold text-zinc-400">
+                            {m.monthLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* 4. GAME PERFORMANCE & TOP PLAYERS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Game Market Share */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-lg">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    Game Popularity & Revenue
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400">By Matches & Fees</span>
+                </div>
+
+                <div className="space-y-3">
+                  {analytics?.gameStats?.map((g) => {
+                    const totalCollected = analytics?.finances?.entryCollected || 1;
+                    const sharePct = Math.round((g.fees / totalCollected) * 100);
+                    return (
+                      <div key={g.gameName} className="p-3 bg-[#121218] rounded-xl border border-zinc-800/80 space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-white">{g.gameName}</span>
+                          <span className="font-mono text-emerald-400 font-bold">
+                            ₹{g.fees} ({g.matches} matches hosted)
+                          </span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.max(5, sharePct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Hall of Fame / Top Winners */}
+              <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-lg">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    Top Winning Players (Hall of Fame)
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400">Total Prize Earners</span>
+                </div>
+
+                {analytics?.topWinners?.length === 0 ? (
+                  <p className="text-xs text-zinc-500 py-4 text-center">No winners recorded yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {analytics?.topWinners?.map((w, idx) => (
+                      <div key={w.id} className="p-2.5 bg-[#121218] rounded-xl border border-zinc-800 flex justify-between items-center">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="w-6 h-6 rounded-lg bg-zinc-800 flex items-center justify-center font-mono font-bold text-xs text-amber-300">
+                            #{idx + 1}
+                          </span>
+                          <div>
+                            <span className="text-xs font-bold text-white block">{w.name}</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">{w.email}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-mono font-black text-amber-400 block">+₹{w.totalWon}</span>
+                          <span className="text-[9px] text-zinc-500 font-mono">{w.winsCount} Match Won</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 5. RECENT FINANCIAL ACTIVITY FEED */}
+            <div className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-5 space-y-3.5 shadow-lg">
+              <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                <span className="text-xs font-black uppercase tracking-wider text-white">
+                  Live Financial Activity Feed
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400">Latest wallet transactions</span>
+              </div>
+
+              {analytics?.recentActivity?.length === 0 ? (
+                <p className="text-xs text-zinc-500 py-3 text-center">No recent financial transactions.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {analytics?.recentActivity?.map((act) => (
+                    <div key={act.id} className="p-2.5 bg-[#121218] rounded-xl border border-zinc-800/80 flex justify-between items-center">
+                      <div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                            act.type === 'winning'
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/40'
+                              : act.type === 'affiliate_commission'
+                              ? 'bg-purple-500/15 text-purple-400 border border-purple-500/40'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/40'
+                          }`}>
+                            {act.type.replace('_', ' ')}
+                          </span>
+                          <span className="font-bold text-zinc-200">{act.userName}</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">{act.description}</p>
+                      </div>
+                      <span className={`font-mono font-bold text-xs ${act.type === 'winning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        +₹{act.amount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 6: UPI WITHDRAWALS                                                    */}
         {/* ========================================================================= */}
         {activeTab === 'withdrawals' && (
           <div className="space-y-4">

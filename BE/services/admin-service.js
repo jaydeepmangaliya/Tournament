@@ -2,7 +2,7 @@ const db = require("../connection");
 
 const adminService = {};
 
-// 1. Dashboard Financial & Operational Analytics
+// 1. Dashboard Financial & Operational Analytics (Deep Reporting & Trends)
 adminService.getAnalytics = async () => {
   try {
     // Total Tournaments breakdown
@@ -54,10 +54,130 @@ adminService.getAnalytics = async () => {
       FROM users
     `);
 
+    // Month-over-Month & Week-over-Week Revenue Comparison
+    const [feeCompare] = await db.promise().query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN created_at >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN entry_fee_paid ELSE 0 END), 0) as this_month_fees,
+        COALESCE(SUM(CASE WHEN created_at >= DATE_SUB(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH) AND created_at < DATE_FORMAT(NOW(), '%Y-%m-01') THEN entry_fee_paid ELSE 0 END), 0) as last_month_fees,
+        COALESCE(SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN entry_fee_paid ELSE 0 END), 0) as this_week_fees,
+        COALESCE(SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY) THEN entry_fee_paid ELSE 0 END), 0) as last_week_fees
+      FROM tournament_teams
+    `);
+
+    // Player growth comparison (This month vs Last month, This week vs Last week)
+    const [playerCompare] = await db.promise().query(`
+      SELECT
+        COUNT(CASE WHEN created_at >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 END) as this_month_players,
+        COUNT(CASE WHEN created_at >= DATE_SUB(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH) AND created_at < DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 END) as last_month_players,
+        COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as this_week_players,
+        COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as last_week_players
+      FROM users
+      WHERE role = 'player'
+    `);
+
+    // Last 6 Months Monthly Trend for Revenue Chart
+    const [monthlyTrend] = await db.promise().query(`
+      SELECT
+        DATE_FORMAT(t_date.d, '%Y-%m') as month_key,
+        DATE_FORMAT(t_date.d, '%b') as month_label,
+        COALESCE(SUM(tt.entry_fee_paid), 0) as fees_collected,
+        COALESCE((
+          SELECT SUM(amount) FROM wallet_transactions 
+          WHERE type = 'winning' AND status = 'completed' AND DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(t_date.d, '%Y-%m')
+        ), 0) as prizes_paid
+      FROM (
+        SELECT CURDATE() as d
+        UNION SELECT DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+        UNION SELECT DATE_SUB(CURDATE(), INTERVAL 2 MONTH)
+        UNION SELECT DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+        UNION SELECT DATE_SUB(CURDATE(), INTERVAL 4 MONTH)
+        UNION SELECT DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
+      ) t_date
+      LEFT JOIN tournament_teams tt ON DATE_FORMAT(tt.created_at, '%Y-%m') = DATE_FORMAT(t_date.d, '%Y-%m')
+      GROUP BY month_key, month_label, t_date.d
+      ORDER BY month_key ASC
+    `);
+
+    // Game & Platform breakdown (Free Fire vs BGMI)
+    const [gameStats] = await db.promise().query(`
+      SELECT 
+        g.name as game_name,
+        COUNT(DISTINCT t.id) as match_count,
+        COALESCE(SUM(tt.entry_fee_paid), 0) as total_fees
+      FROM games g
+      LEFT JOIN tournaments t ON t.game_id = g.id
+      LEFT JOIN tournament_teams tt ON tt.tournament_id = t.id
+      GROUP BY g.id, g.name
+    `);
+
+    // Top Winning Players (Leaderboard Hall of Fame)
+    const [topWinners] = await db.promise().query(`
+      SELECT 
+        u.id, u.name, u.email,
+        COALESCE(SUM(wt.amount), 0) as total_won,
+        COUNT(wt.id) as wins_count
+      FROM wallet_transactions wt
+      JOIN users u ON u.id = wt.user_id
+      WHERE wt.type = 'winning' AND wt.status = 'completed'
+      GROUP BY u.id, u.name, u.email
+      ORDER BY total_won DESC
+      LIMIT 5
+    `);
+
+    // Recent Financial Activity
+    const [recentActivity] = await db.promise().query(`
+      SELECT
+        wt.id, wt.user_id, wt.amount, wt.type, wt.description, wt.created_at,
+        u.name as user_name
+      FROM wallet_transactions wt
+      JOIN users u ON u.id = wt.user_id
+      WHERE wt.type IN ('winning', 'affiliate_commission', 'deposit')
+      ORDER BY wt.created_at DESC
+      LIMIT 8
+    `);
+
     const entryCollected = parseFloat(entryFeeRows[0].total_entry_collected || 0);
     const prizesPaid = parseFloat(prizeRows[0].total_prizes_paid || 0);
     const affPaid = parseFloat(affiliateRows[0].total_affiliate_paid || 0);
     const netHouseProfit = entryCollected - (prizesPaid + affPaid);
+
+    // Compute percentage growth helper
+    const calcGrowth = (curr, prev) => {
+      const c = parseFloat(curr) || 0;
+      const p = parseFloat(prev) || 0;
+      if (p === 0) return c > 0 ? 100 : 0;
+      return Math.round(((c - p) / p) * 100);
+    };
+
+    const monthlyBreakdown = monthlyTrend.map((m) => {
+      const fees = parseFloat(m.fees_collected || 0);
+      const prizes = parseFloat(m.prizes_paid || 0);
+      return {
+        monthKey: m.month_key,
+        monthLabel: m.month_label,
+        fees,
+        prizes,
+        profit: Math.max(0, fees - prizes),
+      };
+    });
+
+    const compareData = {
+      thisMonthFees: parseFloat(feeCompare[0].this_month_fees || 0),
+      lastMonthFees: parseFloat(feeCompare[0].last_month_fees || 0),
+      monthFeesGrowth: calcGrowth(feeCompare[0].this_month_fees, feeCompare[0].last_month_fees),
+
+      thisWeekFees: parseFloat(feeCompare[0].this_week_fees || 0),
+      lastWeekFees: parseFloat(feeCompare[0].last_week_fees || 0),
+      weekFeesGrowth: calcGrowth(feeCompare[0].this_week_fees, feeCompare[0].last_week_fees),
+
+      thisMonthPlayers: parseInt(playerCompare[0].this_month_players || 0),
+      lastMonthPlayers: parseInt(playerCompare[0].last_month_players || 0),
+      monthPlayersGrowth: calcGrowth(playerCompare[0].this_month_players, playerCompare[0].last_month_players),
+
+      thisWeekPlayers: parseInt(playerCompare[0].this_week_players || 0),
+      lastWeekPlayers: parseInt(playerCompare[0].last_week_players || 0),
+      weekPlayersGrowth: calcGrowth(playerCompare[0].this_week_players, playerCompare[0].last_week_players),
+    };
 
     return {
       status: true,
@@ -69,11 +189,34 @@ adminService.getAnalytics = async () => {
           prizesPaid: parseFloat(prizesPaid.toFixed(2)),
           affiliatePaid: parseFloat(affPaid.toFixed(2)),
           netProfit: parseFloat(netHouseProfit.toFixed(2)),
+          profitMarginPct: entryCollected > 0 ? Math.round((netHouseProfit / entryCollected) * 100) : 0,
         },
         withdrawals: {
           pendingCount: parseInt(pendingWithdrawals[0].pending_count || 0),
           pendingAmount: parseFloat(pendingWithdrawals[0].pending_amount || 0),
         },
+        comparisons: compareData,
+        monthlyTrend: monthlyBreakdown,
+        gameStats: gameStats.map((g) => ({
+          gameName: g.game_name,
+          matches: parseInt(g.match_count || 0),
+          fees: parseFloat(g.total_fees || 0),
+        })),
+        topWinners: topWinners.map((w) => ({
+          id: w.id,
+          name: w.name,
+          email: w.email,
+          totalWon: parseFloat(w.total_won || 0),
+          winsCount: parseInt(w.wins_count || 0),
+        })),
+        recentActivity: recentActivity.map((a) => ({
+          id: a.id,
+          userName: a.user_name,
+          amount: parseFloat(a.amount || 0),
+          type: a.type,
+          description: a.description,
+          createdAt: a.created_at,
+        })),
       },
     };
   } catch (error) {
