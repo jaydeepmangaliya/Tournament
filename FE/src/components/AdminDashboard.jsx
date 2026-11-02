@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   // Simple, intuitive tabs:
   // 'full' (Need Room ID) | 'open' (Joining) | 'live' (Playing) | 'completed' (Finished) | 'withdrawals' | 'players' | 'create'
   const [activeTab, setActiveTab] = useState('full');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Data states
   const [tournaments, setTournaments] = useState([]);
@@ -836,44 +837,92 @@ export default function AdminDashboard() {
     return matchSearch && matchRole;
   });
 
-  // 7 Clean, Layman-Friendly Tabs
+  // 7 Clean, Layman-Friendly Tabs with Custom Icons for Sidebar
   const tabs = [
     {
       id: 'full',
       label: '1. Full (Need Room ID)',
       count: fullMatches.length ? `${fullMatches.length} READY` : null,
       alert: fullMatches.length > 0,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      ),
     },
     {
       id: 'open',
       label: '2. Open Matches',
       count: `${openMatches.length} OPEN`,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
     },
     {
       id: 'live',
       label: '3. Live Matches',
       count: liveMatches.length ? `${liveMatches.length} LIVE` : null,
       alert: liveMatches.length > 0,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+      ),
     },
     {
       id: 'completed',
       label: '4. Completed Matches',
       count: `${completedMatches.length}`,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+          <path d="M4 22h16" />
+          <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+          <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+        </svg>
+      ),
     },
     {
       id: 'withdrawals',
       label: '5. UPI Withdrawals',
       count: analytics?.withdrawals?.pendingCount || null,
       alert: (analytics?.withdrawals?.pendingCount || 0) > 0,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      ),
     },
     {
       id: 'players',
       label: '6. Players & Affiliates',
       count: `${users.length}`,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
     },
     {
       id: 'create',
       label: '7. + New Match',
+      isSpecial: true,
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      ),
     },
   ];
 
@@ -959,143 +1008,261 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050507] text-[#e4e4e7] antialiased">
-      {/* 1. DEDICATED ISOLATED TOPBAR */}
-      <nav className="sticky top-0 z-40 bg-[#08080c]/95 backdrop-blur-md border-b border-zinc-800 px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 max-w-7xl mx-auto">
-          {/* Brand */}
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0 shadow-lg">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
+    <div className="min-h-screen bg-[#050507] text-[#e4e4e7] antialiased flex flex-col lg:flex-row">
+      {/* 1. MOBILE TOP NAVIGATION BAR (Visible only on < lg) */}
+      <div className="lg:hidden sticky top-0 z-40 bg-[#08080c]/95 backdrop-blur-md border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-2.5">
+          <button
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <div className="flex items-center space-x-1.5">
+            <span className="text-sm font-black text-white tracking-wider">LOCALESPORT</span>
+            <span className="px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/40 text-[8px] font-black uppercase text-amber-300">
+              ADMIN
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="px-2.5 py-1 rounded-lg bg-[#101016] border border-zinc-800 flex items-center space-x-1.5 text-xs font-mono">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold">Net:</span>
+            <span className="font-bold text-emerald-400">
+              ₹{analytics?.finances?.netProfit?.toLocaleString('en-IN') || 0}
+            </span>
+          </div>
+          <button
+            onClick={loadAllAdminData}
+            title="Refresh"
+            className="p-1.5 rounded-lg bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* MOBILE BACKDROP OVERLAY */}
+      {mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm"
+        />
+      )}
+
+      {/* 2. DEDICATED SIDE NAVIGATION BAR (Sticky Left on Desktop, Slide-in Drawer on Mobile) */}
+      <aside
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 sm:w-72 bg-[#08080c] border-r border-zinc-800/90 flex flex-col justify-between transition-transform duration-200 ease-in-out flex-shrink-0 ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div className="p-4 sm:p-5 space-y-5 overflow-y-auto">
+          {/* Brand & User Profile */}
+          <div className="pb-4 border-b border-zinc-800/80 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-sm font-black text-white tracking-wider truncate">LOCALESPORT</span>
+                  <span className="px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/40 text-[8px] font-black uppercase text-amber-300">
+                    ADMIN
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1.5 text-[10px] text-zinc-400 mt-0.5 truncate">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                  <span className="font-mono text-zinc-300 truncate">{adminUser?.email || 'admin@localesport.com'}</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-black text-white tracking-wider">LOCALESPORT</span>
-                <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/40 text-[9px] font-black uppercase text-amber-300 tracking-wider">
-                  Admin Console
+            {/* Mobile close button */}
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden p-1.5 rounded-lg text-zinc-400 hover:text-white"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Navigation Links (Vertical List) */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 px-3 block mb-1.5">
+              Organizer Flow
+            </span>
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group ${
+                    isActive
+                      ? 'bg-white text-black shadow-lg shadow-white/10 font-black'
+                      : tab.isSpecial
+                      ? 'bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 border border-emerald-800/60'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <span className={isActive ? 'text-black' : tab.isSpecial ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'}>
+                      {tab.icon}
+                    </span>
+                    <span className="truncate">{tab.label}</span>
+                  </div>
+
+                  {tab.count && (
+                    <span
+                      className={`ml-2 px-2 py-0.5 rounded text-[10px] font-mono font-bold flex-shrink-0 ${
+                        tab.alert
+                          ? 'bg-amber-500 text-black animate-pulse font-black'
+                          : isActive
+                          ? 'bg-zinc-200 text-black'
+                          : 'bg-zinc-800 text-zinc-300'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Live Financial Metrics Card in Sidebar */}
+          <div className="pt-2">
+            <div className="p-3.5 bg-[#101016] rounded-2xl border border-zinc-800 space-y-2">
+              <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider block">
+                Platform Finances (Live)
+              </span>
+              <div className="flex justify-between items-center text-xs font-mono">
+                <span className="text-zinc-400">Total Fees:</span>
+                <span className="text-white font-bold">
+                  ₹{analytics?.finances?.entryCollected?.toLocaleString('en-IN') || 0}
                 </span>
               </div>
-              <div className="flex items-center space-x-1.5 text-[11px] text-zinc-400 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-mono text-zinc-300">{adminUser?.email || 'admin@localesport.com'}</span>
+              <div className="flex justify-between items-center text-xs font-mono">
+                <span className="text-zinc-400">House Net:</span>
+                <span className="text-emerald-400 font-black">
+                  ₹{analytics?.finances?.netProfit?.toLocaleString('en-IN') || 0}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-mono pt-1.5 border-t border-zinc-800/80">
+                <span className="text-zinc-400">Pending UPI:</span>
+                <span className={((analytics?.withdrawals?.pendingCount || 0) > 0) ? 'text-amber-400 font-bold animate-pulse' : 'text-zinc-400'}>
+                  {analytics?.withdrawals?.pendingCount || 0} Req
+                </span>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Real-time Tickers & Actions */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {/* Sidebar Footer Actions */}
+        <div className="p-4 border-t border-zinc-800/80 space-y-2 bg-[#060609]">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2 px-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-[11px] font-bold text-zinc-300 hover:text-white transition flex items-center justify-center space-x-1.5"
+          >
+            <span>Open Player Website</span>
+            <svg className="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+
+          <button
+            onClick={handleAdminLogout}
+            className="w-full py-2 px-3 rounded-xl bg-red-950/40 border border-red-800/60 hover:bg-red-900/60 text-[11px] font-bold text-red-300 transition flex items-center justify-center space-x-1.5"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* 3. RIGHT CONTENT AREA */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
+        {/* DESKTOP STICKY TOP HEADER */}
+        <header className="sticky top-0 z-30 bg-[#08080c]/95 backdrop-blur-md border-b border-zinc-800 px-6 py-3.5 hidden lg:flex items-center justify-between">
+          <div>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-base font-black text-white">
+                {tabs.find((t) => t.id === activeTab)?.label || 'Console'}
+              </h1>
+              <span className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400">
+                Organizer Portal
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Live tournament control center with instant prize settlements and anti-cheat management.
+            </p>
+          </div>
+
+          {/* Top Tickers & Refresh */}
+          <div className="flex items-center space-x-3">
             <div className="px-3 py-1.5 rounded-xl bg-[#101016] border border-zinc-800 flex items-center space-x-2">
-              <span className="text-[10px] uppercase font-bold text-zinc-500">Total Fees</span>
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Total Fees:</span>
               <span className="text-xs font-mono font-bold text-white">
                 ₹{analytics?.finances?.entryCollected?.toLocaleString('en-IN') || 0}
               </span>
             </div>
 
             <div className="px-3 py-1.5 rounded-xl bg-[#101016] border border-zinc-800 flex items-center space-x-2">
-              <span className="text-[10px] uppercase font-bold text-zinc-500">House Net</span>
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Net Profit:</span>
               <span className="text-xs font-mono font-bold text-emerald-400">
                 ₹{analytics?.finances?.netProfit?.toLocaleString('en-IN') || 0}
               </span>
             </div>
 
-            <div className="px-3 py-1.5 rounded-xl bg-[#101016] border border-zinc-800 flex items-center space-x-2">
-              <span className="text-[10px] uppercase font-bold text-zinc-500">Pending UPI</span>
-              <span
-                className={`text-xs font-mono font-bold ${
-                  (analytics?.withdrawals?.pendingCount || 0) > 0 ? 'text-amber-400 animate-pulse' : 'text-zinc-400'
-                }`}
-              >
-                {analytics?.withdrawals?.pendingCount || 0} Req
-              </span>
-            </div>
-
-            {/* Refresh */}
             <button
               onClick={loadAllAdminData}
-              title="Refresh"
-              className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white transition"
+              title="Refresh Data"
+              className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white transition flex items-center space-x-1.5 text-xs font-bold"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="23 4 23 10 17 10" />
                 <polyline points="1 20 1 14 7 14" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
               </svg>
-            </button>
-
-            {/* View Player Site */}
-            <a
-              href="/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-[11px] font-bold text-zinc-300 hover:text-white transition flex items-center space-x-1"
-            >
-              <span>Player Website</span>
-              <svg className="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-
-            {/* Admin Logout */}
-            <button
-              onClick={handleAdminLogout}
-              className="px-3 py-1.5 rounded-xl bg-red-950/40 border border-red-800/60 hover:bg-red-900/50 text-[11px] font-bold text-red-300 transition flex items-center space-x-1"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              <span>Sign Out</span>
+              <span>Refresh</span>
             </button>
           </div>
-        </div>
-      </nav>
+        </header>
 
-      {/* 2. MAIN ADMIN CONTAINER */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Global Toast Alert */}
-        {message && (
-          <div className="p-3.5 bg-emerald-950/50 border border-emerald-500 text-emerald-200 rounded-2xl text-xs font-bold flex items-center space-x-2 shadow-lg">
-            <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-            <span>{message}</span>
-          </div>
-        )}
-
-        {/* 3. SIMPLIFIED 7 TABS */}
-        <div className="flex overflow-x-auto space-x-2 p-1.5 bg-[#0c0c12] border border-zinc-800 rounded-2xl scrollbar-none shadow-xl">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-shrink-0 px-3.5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center space-x-2 ${
-                activeTab === tab.id
-                  ? 'bg-white text-black shadow-lg shadow-white/10'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.count && (
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                    tab.alert
-                      ? 'bg-amber-500 text-black animate-pulse'
-                      : activeTab === tab.id
-                      ? 'bg-zinc-200 text-black'
-                      : 'bg-zinc-800 text-zinc-300'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* MAIN DASHBOARD CONTENT */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* Global Toast Alert */}
+          {message && (
+            <div className="p-3.5 bg-emerald-950/50 border border-emerald-500 text-emerald-200 rounded-2xl text-xs font-bold flex items-center space-x-2 shadow-lg">
+              <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              <span>{message}</span>
+            </div>
+          )}
 
         {/* ========================================================================= */}
         {/* TAB 1: FULL MATCHES (NEED ROOM ID & PASSWORD)                             */}
@@ -2905,7 +3072,8 @@ export default function AdminDashboard() {
             </motion.div>
           </div>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
