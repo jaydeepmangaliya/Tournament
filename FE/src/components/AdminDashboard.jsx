@@ -105,6 +105,84 @@ export default function AdminDashboard() {
     matchStartAt: '',
   });
 
+  // House Profit Margin state (defaults to 30% target profit margin)
+  const [createProfitMargin, setCreateProfitMargin] = useState(30);
+  const [editProfitMargin, setEditProfitMargin] = useState(30);
+
+  // Helper: Computes exact profit margin & rank prizes based on total seats, entry fee & margin %
+  const computeMarginBreakdown = (totalSlots, entryFee, marginPercent = 30, matchType = 'battle_royale') => {
+    const slots = Math.max(1, parseInt(totalSlots) || 48);
+    const fee = Math.max(0, parseFloat(entryFee) || 0);
+    const gross = Math.round(slots * fee);
+    const margin = Math.min(95, Math.max(0, parseFloat(marginPercent) || 30));
+
+    const houseProfit = Math.round((gross * margin) / 100);
+    const totalPrizePool = Math.max(0, gross - houseProfit);
+
+    let first = 0;
+    let second = 0;
+    let third = 0;
+
+    if (matchType === 'clash') {
+      first = totalPrizePool;
+    } else {
+      // Free Fire / BGMI Standard Split: ~55% to 1st (Booyah), ~30% to 2nd, ~15% to 3rd
+      first = Math.round(totalPrizePool * 0.55);
+      second = Math.round(totalPrizePool * 0.30);
+      third = Math.max(0, totalPrizePool - first - second);
+    }
+
+    return {
+      slots,
+      fee,
+      gross,
+      margin,
+      houseProfit,
+      totalPrizePool,
+      first,
+      second,
+      third,
+    };
+  };
+
+  // 1-Click apply margin to Create Tournament form
+  const handleApplyCreateMargin = (margin = createProfitMargin) => {
+    setCreateProfitMargin(margin);
+    const split = computeMarginBreakdown(
+      createForm.totalSlots,
+      createForm.entryFee,
+      margin,
+      createForm.matchType
+    );
+    setCreateForm((prev) => ({
+      ...prev,
+      prizePool: split.totalPrizePool,
+      firstPrize: split.first,
+      secondPrize: split.second,
+      thirdPrize: split.third,
+    }));
+  };
+
+  // 1-Click apply margin to Edit Tournament modal
+  const handleApplyEditMargin = (margin = editProfitMargin) => {
+    if (!editingTournament) return;
+    setEditProfitMargin(margin);
+    const slots = editingTournament.total_slots || (editingTournament.total_teams * (editingTournament.players_per_team || 1)) || 48;
+    const split = computeMarginBreakdown(
+      slots,
+      editTourneyForm.entry_fee,
+      margin,
+      editingTournament.match_type || 'battle_royale'
+    );
+    setEditTourneyForm((prev) => ({
+      ...prev,
+      prize_pool: split.totalPrizePool,
+      first_prize: split.first,
+      second_prize: split.second,
+      third_prize: split.third,
+    }));
+  };
+
   // Verify Admin Authentication on Mount
   useEffect(() => {
     if (!adminToken || adminUser?.role !== 'admin') {
@@ -509,12 +587,34 @@ export default function AdminDashboard() {
     setTimeout(() => setCopiedUpiId(null), 1500);
   };
 
-  // Create Tournament Templates
+  // Create Tournament Templates (Calibrated to 30% House Profit Margin)
   const applyTemplate = (type) => {
     const now = new Date();
     const plusTwoHours = new Date(now.getTime() + 7200000).toISOString().slice(0, 16);
 
-    if (type === 'ff-solo-48') {
+    if (type === 'ff-solo-10') {
+      // 48 players * ₹10 = ₹480 Gross. Platform Profit (30%) = ₹144. Prize Pool (70%) = ₹336.
+      setCreateProfitMargin(30);
+      setCreateForm({
+        gameId: 1,
+        title: 'Free Fire 48-Player BR Solo (₹10 Entry)',
+        matchType: 'battle_royale',
+        format: 'solo',
+        mapName: 'Bermuda',
+        totalSlots: 48,
+        totalTeams: 48,
+        playersPerTeam: 1,
+        entryFee: 10,
+        prizePool: 336,
+        perKillPrize: 0,
+        firstPrize: 185,
+        secondPrize: 100,
+        thirdPrize: 51,
+        matchStartAt: plusTwoHours,
+      });
+    } else if (type === 'ff-solo-48') {
+      // 48 players * ₹25 = ₹1200 Gross. Platform Profit (30%) = ₹360. Prize Pool (70%) = ₹840.
+      setCreateProfitMargin(30);
       setCreateForm({
         gameId: 1,
         title: 'Free Fire 48-Player BR Solo Survival',
@@ -525,14 +625,16 @@ export default function AdminDashboard() {
         totalTeams: 48,
         playersPerTeam: 1,
         entryFee: 25,
-        prizePool: 800,
-        perKillPrize: 15,
-        firstPrize: 400,
-        secondPrize: 250,
-        thirdPrize: 150,
+        prizePool: 840,
+        perKillPrize: 0,
+        firstPrize: 460,
+        secondPrize: 260,
+        thirdPrize: 120,
         matchStartAt: plusTwoHours,
       });
     } else if (type === 'ff-duo-24') {
+      // 24 teams * ₹60 = ₹1440 Gross. Platform Profit (30%) = ₹432. Prize Pool (70%) = ₹1008.
+      setCreateProfitMargin(30);
       setCreateForm({
         gameId: 1,
         title: 'Free Fire 48-Player BR Duo War',
@@ -543,14 +645,16 @@ export default function AdminDashboard() {
         totalTeams: 24,
         playersPerTeam: 2,
         entryFee: 60,
-        prizePool: 900,
-        perKillPrize: 15,
-        firstPrize: 500,
-        secondPrize: 250,
-        thirdPrize: 150,
+        prizePool: 1008,
+        perKillPrize: 0,
+        firstPrize: 550,
+        secondPrize: 300,
+        thirdPrize: 158,
         matchStartAt: plusTwoHours,
       });
     } else if (type === 'ff-cs-4v4') {
+      // 2 teams * ₹100 = ₹200 Gross. Platform Profit (30%) = ₹60. Prize Pool (70%) = ₹140.
+      setCreateProfitMargin(30);
       setCreateForm({
         gameId: 1,
         title: 'Free Fire 4v4 Clash Squad Championship',
@@ -561,14 +665,16 @@ export default function AdminDashboard() {
         totalTeams: 2,
         playersPerTeam: 4,
         entryFee: 100,
-        prizePool: 180,
+        prizePool: 140,
         perKillPrize: 0,
-        firstPrize: 180,
+        firstPrize: 140,
         secondPrize: 0,
         thirdPrize: 0,
         matchStartAt: plusTwoHours,
       });
     } else if (type === 'pubg-squad-12') {
+      // 12 teams * ₹200 = ₹2400 Gross. Platform Profit (30%) = ₹720. Prize Pool (70%) = ₹1680.
+      setCreateProfitMargin(30);
       setCreateForm({
         gameId: 2,
         title: 'PUBG Mobile 48-Player BR Squad Battle',
@@ -579,11 +685,11 @@ export default function AdminDashboard() {
         totalTeams: 12,
         playersPerTeam: 4,
         entryFee: 200,
-        prizePool: 1800,
-        perKillPrize: 25,
-        firstPrize: 1000,
-        secondPrize: 500,
-        thirdPrize: 300,
+        prizePool: 1680,
+        perKillPrize: 0,
+        firstPrize: 924,
+        secondPrize: 504,
+        thirdPrize: 252,
         matchStartAt: plusTwoHours,
       });
     }
@@ -1924,19 +2030,34 @@ export default function AdminDashboard() {
         {/* ========================================================================= */}
         {activeTab === 'create' && (
           <div className="max-w-3xl mx-auto space-y-6">
-            {/* 1-Click Fast Presets */}
+            {/* 1-Click Fast Presets with 30% Profit Built-in */}
             <div className="bg-[#0c0c10] border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block">
-                1-Click Presets:
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                  1-Click Presets (Calibrated to 30% Platform Profit):
+                </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-mono font-bold text-emerald-400">
+                  Target: 30% House Margin
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyTemplate('ff-solo-10')}
+                  className="p-3 rounded-xl bg-gradient-to-br from-emerald-950/50 to-[#14141d] border border-emerald-500/40 hover:border-emerald-400 text-left transition shadow"
+                >
+                  <span className="text-xs font-bold text-white block">FF Solo ₹10</span>
+                  <span className="text-[10px] text-emerald-300 font-mono block">30% Net Profit</span>
+                  <span className="text-[9px] text-zinc-400 font-mono">₹480 In → ₹144 Profit</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => applyTemplate('ff-solo-48')}
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
-                  <span className="text-xs font-bold text-white block">FF Solo 48</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹25 Fee • 48 Slots</span>
+                  <span className="text-xs font-bold text-white block">FF Solo ₹25</span>
+                  <span className="text-[10px] text-emerald-400 font-mono block">30% Net Profit</span>
+                  <span className="text-[9px] text-zinc-400 font-mono">₹1,200 In → ₹360 Profit</span>
                 </button>
                 <button
                   type="button"
@@ -1944,7 +2065,8 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">FF Duo 2v2</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹60 Fee • 24 Duos</span>
+                  <span className="text-[10px] text-emerald-400 font-mono block">30% Net Profit</span>
+                  <span className="text-[9px] text-zinc-400 font-mono">₹1,440 In → ₹432 Profit</span>
                 </button>
                 <button
                   type="button"
@@ -1952,7 +2074,8 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">FF CS 4v4</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹100 Fee • 2 Teams</span>
+                  <span className="text-[10px] text-emerald-400 font-mono block">30% Net Profit</span>
+                  <span className="text-[9px] text-zinc-400 font-mono">₹200 In → ₹60 Profit</span>
                 </button>
                 <button
                   type="button"
@@ -1960,7 +2083,8 @@ export default function AdminDashboard() {
                   className="p-3 rounded-xl bg-[#14141d] border border-zinc-800 hover:border-zinc-600 text-left transition"
                 >
                   <span className="text-xs font-bold text-white block">PUBG Squad</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">₹200 Fee • 12 Teams</span>
+                  <span className="text-[10px] text-emerald-400 font-mono block">30% Net Profit</span>
+                  <span className="text-[9px] text-zinc-400 font-mono">₹2,400 In → ₹720 Profit</span>
                 </button>
               </div>
             </div>
@@ -2061,6 +2185,91 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
+
+                {/* 30% AUTO PROFIT MARGIN CALCULATOR */}
+                {(() => {
+                  const calc = computeMarginBreakdown(
+                    createForm.totalSlots,
+                    createForm.entryFee,
+                    createProfitMargin,
+                    createForm.matchType
+                  );
+                  return (
+                    <div className="bg-gradient-to-r from-emerald-950/40 via-[#101815] to-[#0d0d12] border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
+                      <div className="flex flex-wrap justify-between items-center gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                            Auto Profit Margin Calculator
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/40">
+                            {calc.margin}% Target Profit
+                          </span>
+                        </div>
+
+                        {/* Quick Margin Selectors */}
+                        <div className="flex items-center space-x-1">
+                          <span className="text-[10px] uppercase font-bold text-zinc-400 mr-1">Presets:</span>
+                          {[20, 25, 30, 35].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => handleApplyCreateMargin(m)}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold font-mono transition ${
+                                createProfitMargin === m
+                                  ? 'bg-emerald-400 text-black shadow font-black'
+                                  : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                              }`}
+                            >
+                              {m}%{m === 30 ? ' (Target)' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Real-time Math Breakdown Card */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+                        <div className="bg-black/50 p-2.5 rounded-xl border border-zinc-800">
+                          <span className="text-[9px] uppercase font-bold text-zinc-400 block">Total Collection</span>
+                          <span className="text-sm font-black text-white">₹{calc.gross}</span>
+                          <span className="text-[10px] text-zinc-500 block">({calc.slots} slots × ₹{calc.fee})</span>
+                        </div>
+
+                        <div className="bg-emerald-950/60 p-2.5 rounded-xl border border-emerald-600/50">
+                          <span className="text-[9px] uppercase font-bold text-emerald-300 block">
+                            Your Net Profit ({calc.margin}%)
+                          </span>
+                          <span className="text-sm font-black text-emerald-400">+₹{calc.houseProfit}</span>
+                          <span className="text-[10px] text-emerald-400/80 block">Platform Keeps</span>
+                        </div>
+
+                        <div className="bg-black/50 p-2.5 rounded-xl border border-zinc-800">
+                          <span className="text-[9px] uppercase font-bold text-zinc-400 block">
+                            Prize Pool ({100 - calc.margin}%)
+                          </span>
+                          <span className="text-sm font-black text-amber-300">₹{calc.totalPrizePool}</span>
+                          <span className="text-[10px] text-zinc-500 block">Paid to Players</span>
+                        </div>
+
+                        <div className="bg-black/50 p-2.5 rounded-xl border border-zinc-800 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-zinc-400 block">Rank Split</span>
+                            <span className="text-[11px] font-bold text-zinc-200">
+                              ₹{calc.first} / ₹{calc.second} / ₹{calc.third}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyCreateMargin(createProfitMargin)}
+                            className="mt-1 w-full py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] uppercase rounded-lg transition"
+                          >
+                            Auto-Fill {createProfitMargin}% Split
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
@@ -2184,6 +2393,80 @@ export default function AdminDashboard() {
                     className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-sans focus:outline-none focus:border-zinc-400"
                   />
                 </div>
+
+                {/* 30% AUTO PROFIT MARGIN CALCULATOR IN EDIT MODAL */}
+                {(() => {
+                  const slots = editingTournament.total_slots || (editingTournament.total_teams * (editingTournament.players_per_team || 1)) || 48;
+                  const calc = computeMarginBreakdown(
+                    slots,
+                    editTourneyForm.entry_fee,
+                    editProfitMargin,
+                    editingTournament.match_type || 'battle_royale'
+                  );
+                  return (
+                    <div className="bg-gradient-to-r from-emerald-950/40 via-[#101815] to-[#0d0d12] border border-emerald-500/40 rounded-2xl p-3.5 space-y-2.5 shadow-lg">
+                      <div className="flex flex-wrap justify-between items-center gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300">
+                            Auto Profit Margin Calculator ({calc.margin}%)
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <span className="text-[10px] uppercase font-bold text-zinc-400 mr-1">Presets:</span>
+                          {[20, 25, 30, 35].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => handleApplyEditMargin(m)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono transition ${
+                                editProfitMargin === m
+                                  ? 'bg-emerald-400 text-black shadow font-black'
+                                  : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                              }`}
+                            >
+                              {m}%{m === 30 ? ' (Target)' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+                        <div className="bg-black/50 p-2 rounded-lg border border-zinc-800">
+                          <span className="text-[9px] uppercase font-bold text-zinc-400 block">Total Collection</span>
+                          <span className="text-xs font-black text-white">₹{calc.gross}</span>
+                          <span className="text-[9px] text-zinc-500 block">{calc.slots} seats × ₹{calc.fee}</span>
+                        </div>
+                        <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-600/50">
+                          <span className="text-[9px] uppercase font-bold text-emerald-300 block">
+                            Your Profit ({calc.margin}%)
+                          </span>
+                          <span className="text-xs font-black text-emerald-400">+₹{calc.houseProfit}</span>
+                          <span className="text-[9px] text-emerald-400/80 block">Platform Keeps</span>
+                        </div>
+                        <div className="bg-black/50 p-2 rounded-lg border border-zinc-800">
+                          <span className="text-[9px] uppercase font-bold text-zinc-400 block">
+                            Prize Pool ({100 - calc.margin}%)
+                          </span>
+                          <span className="text-xs font-black text-amber-300">₹{calc.totalPrizePool}</span>
+                          <span className="text-[9px] text-zinc-500 block">To Winners</span>
+                        </div>
+                        <div className="bg-black/50 p-2 rounded-lg border border-zinc-800 flex flex-col justify-between">
+                          <span className="text-[9px] uppercase font-bold text-zinc-400 block">
+                            Split: ₹{calc.first}/₹{calc.second}/₹{calc.third}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyEditMargin(editProfitMargin)}
+                            className="mt-1 w-full py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[9px] uppercase rounded transition"
+                          >
+                            Auto-Fill {editProfitMargin}% Split
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
