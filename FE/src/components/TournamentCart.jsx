@@ -15,11 +15,13 @@ const TournamentCard = ({ tournament }) => {
 
       <div className="p-4 text-white">
         <h3 className="text-xl font-bold mb-1">{tournament.name}</h3>
-        <p className="text-sm text-gray-300">{tournament.game}</p>
-        <p className="text-sm mt-2">🕓 {tournament.date}, {tournament.time}</p>
-        <p className="text-sm">🎯 Entry: {tournament.entryFee}</p>
-        <p className="text-sm">🏆 Prize Pool: {tournament.prizePool}</p>
-        <button className="mt-4 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md w-full font-semibold transition duration-200">
+        <p className="text-xs text-zinc-400 uppercase tracking-wider">{tournament.game}</p>
+        <div className="mt-3 space-y-1 text-xs text-zinc-300">
+          <p className="font-mono">{tournament.date}, {tournament.time}</p>
+          <p><span className="text-zinc-500 font-bold uppercase text-[10px]">Entry:</span> {tournament.entryFee}</p>
+          <p><span className="text-zinc-500 font-bold uppercase text-[10px]">Prize Pool:</span> <strong className="text-silver">{tournament.prizePool}</strong></p>
+        </div>
+        <button className="mt-4 bg-silver-gradient text-black px-4 py-2 rounded-xl w-full font-black text-xs uppercase tracking-wider hover:brightness-110 transition duration-200">
           Register
         </button>
       </div>

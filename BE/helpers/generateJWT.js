@@ -1,11 +1,9 @@
+// BE/helpers/generateJWT.js
 const jwt = require('jsonwebtoken');
-exports.generateJWT = async(email) => {
-    if(!email){ 
-        throw new Error('Email is required.'); 
-    }
-        const token = jwt.sign({ email },  process.env.JWT_SECRET_KEY);
-    
-        return token;
-}
 
-exports.ver
+exports.generateJWT = async (payload) => {
+  if (typeof payload === 'string') {
+    payload = { email: payload };
+  }
+  return jwt.sign(payload, process.env.JWT_SECRET_KEY, { expiresIn: '30d' });
+};

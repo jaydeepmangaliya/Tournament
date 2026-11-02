@@ -1,27 +1,53 @@
-const authService = require("../services/auth-service")
+const authService = require("../services/auth-service");
 
-exports.login=async(req,res,next)=>{ 
-  
-    try{  
+exports.register = async (req, res) => {
+  try {
+    const result = await authService.register(req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error("Register controller error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
 
+exports.login = async (req, res) => {
+  try {
     const result = await authService.login(req.body);
-     
-    const {status,token,message} = result;
-    
-    if(!status){ 
-        throw new Error(message); 
+    if (!result.status) {
+      return res.status(400).json(result);
     }
-    else{ 
-        res.send({status:true,token:token,message:message})
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Login controller error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.verifyCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const result = await authService.verifyCode(code);
+    return res.json(result);
+  } catch (error) {
+    console.error("verifyCode controller error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.me = async (req, res) => {
+  try {
+    const email = req.user?.email;
+    const id = req.user?.id;
+    if (!email && !id) {
+      return res.status(401).json({ status: false, message: "Unauthorized" });
     }
-    
-    }catch(error){ 
-        console.error(error)
-        throw error
-    }
-   
-    
-
-
-}
-
+    const result = await authService.getProfile(id || email);
+    return res.json(result);
+  } catch (error) {
+    console.error("Me controller error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};

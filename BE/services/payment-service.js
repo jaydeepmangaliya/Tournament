@@ -2,7 +2,7 @@ const paymentService = {};
 const razorpay = require('razorpay');
 const db = require('../connection');
 const crypto = require('crypto');
-const { log } = require('console');
+const walletService = require('./wallet-service');
 
 // Initialize Razorpay instance
 const razorpayInstance = new razorpay({
@@ -140,6 +140,19 @@ paymentService.verifyPayment = async (req) => {
             console.log('Database insert failed, but payment is verified:', dbError.message);
             // Payment is still valid even if DB insert fails
         }
+
+        // ── CREDIT WALLET after verified payment ──────────────────────────
+        // Add paid amount to deposit_balance so player can immediately use it for entry fees
+        if (paymentRecord.userId && amount > 0) {
+            try {
+                await walletService.addFunds(paymentRecord.userId, amount);
+                console.log(`[WALLET] Credited ₹${amount} to user ${paymentRecord.userId} after Razorpay payment ${razorpay_payment_id}`);
+            } catch (walletErr) {
+                // Log but don't fail the response — payment is verified, wallet can be reconciled manually
+                console.error('[WALLET] Credit failed after payment verify:', walletErr.message);
+            }
+        }
+        // ──────────────────────────────────────────────────────────────────
 
         return {
             status: true,

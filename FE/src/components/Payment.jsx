@@ -35,24 +35,29 @@ const Payment = () => {
   }, [status, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md text-center">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">Scan to Pay ₹100</h2>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#050507] text-[#e4e4e7] p-4 pt-24 pb-16">
+      <div className="bg-[#0c0c10] border border-zinc-800 p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md text-center space-y-4">
+        <h2 className="text-xl sm:text-2xl font-black text-white">Scan to Pay <span className="text-silver">₹100</span></h2>
+        <p className="text-xs text-zinc-400">Scan via PhonePe, Google Pay, Paytm or any UPI App</p>
 
-        <div className="flex justify-center mb-4">
-          <QRCode value={upiUrl} size={200} />
+        <div className="flex justify-center p-4 bg-white rounded-2xl max-w-[230px] mx-auto shadow-inner">
+          <QRCode value={upiUrl} size={180} />
         </div>
 
         {status === "WAITING" && (
-          <p className="text-yellow-600 mt-4 font-medium">Waiting for payment confirmation...</p>
+          <p className="text-zinc-400 text-xs font-mono animate-pulse">Waiting for UPI payment confirmation...</p>
         )}
 
         {status === "SUCCESS" && (
-          <p className="text-green-600 mt-4 font-semibold">✅ Payment Successful! Redirecting...</p>
+          <p className="text-zinc-200 mt-4 font-semibold text-xs uppercase tracking-wider bg-zinc-900 border border-zinc-700 py-2.5 rounded-xl">
+            Payment Confirmed. Redirecting...
+          </p>
         )}
 
         {status === "FAILED" && (
-          <p className="text-red-600 mt-4 font-semibold">❌ Payment Failed or Cancelled</p>
+          <p className="text-red-400 mt-4 font-semibold text-xs uppercase tracking-wider bg-red-950/40 border border-red-800 py-2.5 rounded-xl">
+            Payment Unsuccessful or Cancelled
+          </p>
         )}
       </div>
     </div>

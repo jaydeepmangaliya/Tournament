@@ -1,351 +1,311 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-
+import { motion } from 'framer-motion';
+import SquadRegisterModal from './SquadRegisterModal';
+import WalletModal from './WalletModal';
 
 export default function TournamentsPage() {
-  const [games, setGames] = useState({});
-  const [selectedGame, setSelectedGame] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    userName: '',
-    phoneNumber: '',
-    ffId: '',
-  });
-  const [paymentDone, setPaymentDone] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [gameFilter, setGameFilter] = useState('all'); // 'all' | 'free-fire' | 'pubg-mobile'
+  const [formatFilter, setFormatFilter] = useState('all'); // 'all' | '1v1' | '2v2' | '4v4' | 'squad' | 'solo'
+  const [selectedTournament, setSelectedTournament] = useState(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   const navigate = useNavigate();
+  const token = localStorage.getItem('token');
+
+  const fetchTournaments = async () => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (gameFilter !== 'all') params.gameSlug = gameFilter;
+      if (formatFilter !== 'all') params.format = formatFilter;
+
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments`, {
+        params,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (res.data.status) {
+        setTournaments(res.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching tournaments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWallet = async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/wallet/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.status) {
+        setWalletBalance(res.data.data.balances.total);
+      }
+    } catch (err) {
+      console.error('Wallet fetch error:', err);
+    }
+  };
 
   useEffect(() => {
-    const fetchGames = async () => {
-      try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/games`);
-        const grouped = response.data.reduce((acc, item) => {
-          if (!acc[item.gameName]) acc[item.gameName] = [];
-          acc[item.gameName].push(item);
-          return acc;
-        }, {});
-        setGames(grouped);
-      } catch (error) {
-        console.error('Error fetching games:', error);
-      }
-    };
+    fetchTournaments();
+    fetchWallet();
+  }, [gameFilter, formatFilter]);
 
-    fetchGames();
-  }, []);
-
-  const openModal = (game) => {
-    setSelectedGame(game);
-    setFormData({ userName: '', phoneNumber: '', ffId: '' });
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedGame(null);
-  };
-
-  const handleChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
-  };
-
-
-  
-
-  const handlePay = async () => {
-    try {
-      // Create order on backend
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('You need to login first!');
-        navigate('/login');
-        return;
-      }
-
-      const orderResponse = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/payment/create-order`,
-        {
-          amount: selectedGame.entryFee,
-          currency: 'INR',
-          tournamentId: selectedGame.id || selectedGame._id,
-          tournamentName: selectedGame.name
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const { orderId, amount, currency } = orderResponse.data;
-
-      // Initialize Razorpay
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: amount,
-        currency: currency,
-        name: 'Tournament Registration',
-        description: `Entry fee for ${selectedGame.name}`,
-        order_id: orderId,
-        handler: async function (response) {
-          try {
-            // Verify payment on backend
-            const verifyResponse = await axios.post(
-              `${import.meta.env.VITE_API_URL}/api/payment/verify`,
-              {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                tournamentId: selectedGame.id || selectedGame._id,
-                amount: selectedGame.entryFee
-              },
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-
-            if (verifyResponse.data.success) {
-              setPaymentDone(true);
-              alert('Payment successful! You can now submit your registration.');
-            } else {
-              alert('Payment verification failed. Please try again.');
-            }
-          } catch (error) {
-            console.error('Payment verification error:', error);
-            alert('Payment verification failed. Please contact support.');
-          }
-        },
-        modal: {
-          ondismiss: function() {
-            console.log('Payment modal closed');
-          }
-        }
-      };
-
-      // Check if Razorpay is loaded
-      if (typeof window.Razorpay === 'undefined') {
-        alert('Payment gateway not loaded. Please refresh the page and try again.');
-        return;
-      }
-
-      const rzp = new window.Razorpay(options);
-
-      rzp.on('payment.failed', function (response) {
-        console.error('Payment failed:', response.error);
-        alert(`Payment failed: ${response.error.description}`);
-      });
-
-      rzp.open();
-
-    } catch (error) {
-      console.error('Payment initiation error:', error);
-      if (error.response && error.response.status === 401) {
-        alert('Session expired, please login again.');
-        navigate('/login');
-      } else {
-        alert('Failed to initiate payment. Please try again.');
-      }
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!paymentDone) {
-      alert('Please complete the payment first!');
-      return;
-    }
-
-    setSubmitting(true);
-
-    const token = localStorage.getItem('token');
+  const handleJoinClick = (tournament) => {
     if (!token) {
-      alert('You need to login first!');
+      alert('Please log in first to register for tournaments.');
       navigate('/login');
-      setSubmitting(false);
       return;
     }
-     console.log(selectedGame);
-     
-    try {
-      const postData = {
-        userName: formData.userName,
-        phoneNumber: formData.phoneNumber,
-        ffId: formData.ffId,
-        tournamentId: selectedGame.id || selectedGame._id,
-        entryFee: selectedGame.entryFee,
-        playerSize: selectedGame.playerSize,
-        prizePool: selectedGame.prizePool,
-      };
-
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/slotes`, postData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      alert('Registration successful!');
-      closeModal();
-    } catch (error) {
-      if (error.response && error.response.status === 401) {
-        alert('Session expired, please login again.');
-        navigate('/login');
-      } else {
-        alert('Registration failed: ' + (error.response?.data?.message || error.message));
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    setSelectedTournament(tournament);
   };
-
-  const gameList = Object.keys(games);
 
   return (
-    <div className="w-full min-h-screen bg-[#0f0f0f] text-white px-4 py-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+    <div className="w-full min-h-screen bg-[#050507] text-[#e4e4e7] pt-24 sm:pt-28 pb-16 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* Header section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-5 sm:pb-6">
+          <div>
+            <div className="flex items-center space-x-2.5">
+              <span className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                  <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                  <path d="M4 22h16" />
+                  <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+                  <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+                  <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                </svg>
+              </span>
+              <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-white">
+                Tournament <span className="text-silver">Arena</span>
+              </h1>
+            </div>
+            <p className="text-zinc-400 text-xs sm:text-sm mt-1">
+              Official Free Fire & PUBG Mobile competitions: 1v1, 2v2, 4v4 Clash Squads, and 48-Player Battle Royale
+            </p>
+          </div>
 
+          {/* Quick Wallet Bar */}
+          {token && (
+            <div className="flex items-center justify-between sm:justify-start space-x-4 bg-[#0d0d12] border border-zinc-800 rounded-2xl p-2.5 px-4 shadow-sm">
+              <div>
+                <span className="text-[10px] uppercase text-zinc-500 block font-bold tracking-wider">
+                  Wallet Balance
+                </span>
+                <span className="text-base sm:text-lg font-black text-white font-mono">
+                  ₹{walletBalance.toFixed(2)}
+                </span>
+              </div>
+              <button
+                onClick={() => setWalletModalOpen(true)}
+                className="px-3.5 py-1.5 bg-silver-gradient hover:brightness-110 text-black rounded-lg text-xs font-black uppercase tracking-wider transition"
+              >
+                + Top Up
+              </button>
+            </div>
+          )}
         </div>
 
-        {gameList.length === 0 ? (
-          <p className="text-center text-gray-400">No games found.</p>
-        ) : (
-          gameList.map((game, idx) => (
-            <div key={idx} className="mb-10">
-              <h2 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2 pt-2">{game}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {games[game].map((item, index) => (
-                  <motion.div
-                    key={index}
-                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.1 }}
-                  >
-                    <img
-                      src={item.gameImageUrl || 'https://via.placeholder.com/400x200'}
-                      alt={item.name}
-                      className="w-full h-40 object-cover"
-                    />
-                    <div className="p-4">
-                      <h2 className="text-lg font-bold mb-2">{item.name}</h2>
-                      <p className="text-sm text-gray-400">Player Size: {item.playerSize}</p>
-                      <p className="text-sm text-gray-400">Entry Fee: ₹{item.entryFee}</p>
-                      <p className="text-sm text-gray-400">Prize Pool: ₹{item.prizePool}</p>
-                      <button
-                        onClick={() => openModal(item)}
-                        className="mt-3 w-full bg-blue-600 hover:bg-blue-700 transition-colors py-2 rounded text-white font-semibold"
-                      >
-                        Register
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
-
-        {/* Modal */}
-        <AnimatePresence>
-          {showModal && (
-            <motion.div
-              className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+        {/* Filters Bar */}
+        <div className="flex flex-col gap-3.5 sm:gap-4 items-start justify-between">
+          {/* Game Selector */}
+          <div className="flex items-center space-x-1.5 bg-[#0e0e13] p-1.5 rounded-xl border border-zinc-800 w-full sm:w-auto">
+            <button
+              onClick={() => setGameFilter('all')}
+              className={`flex-1 sm:flex-none px-4 py-2 sm:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center ${
+                gameFilter === 'all'
+                  ? 'bg-zinc-200 text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
             >
-              <motion.div
-                className="bg-[#1a1a1a] p-6 rounded-lg max-w-md w-full relative"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              All Games
+            </button>
+            <button
+              onClick={() => setGameFilter('free-fire')}
+              className={`flex-1 sm:flex-none px-4 py-2 sm:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center ${
+                gameFilter === 'free-fire'
+                  ? 'bg-zinc-200 text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Free Fire
+            </button>
+            <button
+              onClick={() => setGameFilter('pubg-mobile')}
+              className={`flex-1 sm:flex-none px-4 py-2 sm:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition text-center ${
+                gameFilter === 'pubg-mobile'
+                  ? 'bg-zinc-200 text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              PUBG Mobile
+            </button>
+          </div>
+
+          {/* Mode Selector */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs w-full">
+            <span className="text-zinc-500 text-xs mr-1 font-bold uppercase tracking-wider hidden sm:inline">Format:</span>
+            {[
+              { id: 'all', label: 'All Modes' },
+              { id: '1v1', label: '1v1 Clash' },
+              { id: '2v2', label: '2v2 Clash' },
+              { id: '4v4', label: '4v4 Clash Squad' },
+              { id: 'solo', label: 'BR 48 Solo' },
+              { id: 'duo', label: 'BR 48 Duo' },
+              { id: 'squad', label: 'BR 48 Squad' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFormatFilter(f.id)}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wider transition border ${
+                  formatFilter === f.id
+                    ? 'bg-white text-black border-white'
+                    : 'bg-[#0e0e13] border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
               >
-                <h3 className="text-xl font-semibold mb-4 text-white">Register for {selectedGame.name}</h3>
-                <form onSubmit={handleSubmit} className="space-y-4 text-white">
-                  <div>
-                    <label className="block mb-1 font-medium">User Name</label>
-                    <input
-                      type="text"
-                      name="userName"
-                      value={formData.userName}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
-                    />
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tournaments Grid */}
+        {loading ? (
+          <div className="py-20 text-center text-zinc-500 font-medium">Loading competitive matches...</div>
+        ) : tournaments.length === 0 ? (
+          <div className="py-20 text-center text-zinc-500 bg-[#0e0e13] rounded-2xl border border-zinc-800">
+            <p className="text-base font-bold text-zinc-300 mb-1">No tournaments found for this filter</p>
+            <p className="text-xs text-zinc-500">Select another game or match format above</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tournaments.map((t) => {
+              const totalSlots = t.total_teams;
+              const filled = t.filled_teams;
+              const percent = Math.min(100, Math.round((filled / totalSlots) * 100));
+              const isBR = t.match_type === 'battle_royale';
+
+              return (
+                <motion.div
+                  key={t.id}
+                  whileHover={{ y: -3 }}
+                  className="bg-[#0e0e13] border border-zinc-800 hover:border-zinc-600 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between transition duration-300"
+                >
+                  {/* Card Header */}
+                  <div className="p-6 pb-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                        {t.game_name}
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white text-black">
+                        {t.format.toUpperCase()} {isBR ? '• BR 48' : '• Clash'}
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-white leading-snug">{t.title}</h3>
+                    <div className="flex items-center space-x-3 text-xs text-zinc-400 mt-2 font-mono">
+                      <span>Map: <strong className="text-zinc-200">{t.map_name}</strong></span>
+                      <span>•</span>
+                      <span>
+                        {new Date(t.match_start_at).toLocaleTimeString('en-IN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block mb-1 font-medium">Phone Number</label>
-                    <input
-                      type="tel"
-                      name="phoneNumber"
-                      value={formData.phoneNumber}
-                      onChange={handleChange}
-                      required
-                      pattern="[0-9]{10}"
-                      placeholder="10 digit number"
-                      className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
-                    />
+
+                  {/* Pricing Specs */}
+                  <div className="px-6 py-3.5 bg-zinc-950/80 border-y border-zinc-800/80 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Entry Fee</span>
+                      <span className="text-sm font-black text-zinc-100">₹{t.entry_fee}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Prize Pool</span>
+                      <span className="text-sm font-black text-white">₹{t.prize_pool}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">
+                        {t.per_kill_prize > 0 ? 'Per Kill' : '1st Prize'}
+                      </span>
+                      <span className="text-sm font-black text-silver">
+                        ₹{t.per_kill_prize > 0 ? t.per_kill_prize : t.first_prize}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block mb-1 font-medium">Free Fire ID</label>
-                    <input
-                      type="text"
-                      name="ffId"
-                      value={formData.ffId}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-3 py-2 rounded bg-[#222] border border-gray-700 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div className="flex justify-between items-center mt-6 flex-wrap gap-2">
+
+                  {/* Slots Progress & Action */}
+                  <div className="p-6 pt-4 space-y-3.5">
+                    <div>
+                      <div className="flex justify-between text-xs text-zinc-400 mb-1.5 font-semibold">
+                        <span>Slots Filled</span>
+                        <span className="text-zinc-200 font-mono">
+                          {filled} / {totalSlots} {t.players_per_team > 1 ? 'Squads' : 'Players'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-silver-gradient h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${percent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
                     <button
-                      type="submit"
-                      className={`px-5 py-2 rounded font-semibold transition-colors
-                        ${!paymentDone || submitting
-                          ? 'bg-green-300 text-gray-400 cursor-not-allowed'
-                          : 'bg-green-600 hover:bg-green-700 text-white'
-                        }`}
-                      disabled={!paymentDone || submitting}
+                      onClick={() => handleJoinClick(t)}
+                      disabled={t.is_full || t.status === 'ready' || t.status === 'ongoing' || t.status === 'completed'}
+                      className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition ${
+                        t.is_full || t.status === 'ready' || t.status === 'ongoing'
+                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                          : t.status === 'completed'
+                          ? 'bg-zinc-900 text-zinc-600 cursor-not-allowed'
+                          : 'bg-silver-gradient hover:brightness-110 text-black shadow-md'
+                      }`}
                     >
-                      {submitting ? 'Submitting...' : 'Submit'}
+                      {t.is_full || t.status === 'ready'
+                        ? 'Match Full (Next Round Live)'
+                        : t.status === 'ongoing'
+                        ? 'Match In Progress'
+                        : t.status === 'completed'
+                        ? 'Match Completed'
+                        : `Register ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}
                     </button>
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="bg-gray-700 hover:bg-gray-800 transition-colors px-5 py-2 rounded font-semibold"
-                    >
-                      Cancel
-                    </button>
-                    {!paymentDone ? (
-                      <button
-                        type="button"
-                        onClick={handlePay}
-                        className="bg-yellow-600 hover:bg-yellow-700 transition-colors px-5 py-2 rounded font-semibold"
-                      >
-                        Pay
-                      </button>
-                    ) : (
-                      <span className="text-green-400 font-semibold ml-2">Payment Done ✅</span>
-                    )}
                   </div>
-                </form>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Squad / Team Registration Modal */}
+      <SquadRegisterModal
+        isOpen={Boolean(selectedTournament)}
+        onClose={() => setSelectedTournament(null)}
+        tournament={selectedTournament}
+        walletBalance={walletBalance}
+        onRegistrationSuccess={() => {
+          fetchTournaments();
+          fetchWallet();
+        }}
+        onOpenWallet={() => setWalletModalOpen(true)}
+      />
+
+      {/* Wallet Management Modal */}
+      <WalletModal
+        isOpen={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        onBalanceUpdate={(balances) => setWalletBalance(balances.total)}
+      />
     </div>
   );
 }

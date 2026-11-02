@@ -1,28 +1,40 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const app = express();
 
-const express = require('express')
-const cors = require('cors')
-const app = express()
-require('./connection')
-require('./cron-job/node-cron')
+require('./connection');
+require('./cron-job/node-cron');
+
 app.use(cors({
-    origin: [
+  origin: [
     'http://localhost:5173',
-    'http://localhost:5174'
+    'http://localhost:5174',
+    'http://localhost:3000'
   ]
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-const path = require('path');
 app.use(express.static(path.join(__dirname, 'build')));
 
-// ...existing code...
-app.get(/^\/(?!api|auth).*/, (req, res) => {
-    res.sendFile(path.join(__dirname, 'build', 'index.html'));
-});
-require('./routes/slotes-route')(app);
+// API Routes
 require('./routes/auth-route')(app);
-require('./routes/user-route')(app)
-require('./routes/games-route')(app)
-require('./routes/payment-route')(app)
+require('./routes/tournament-route')(app);
+require('./routes/wallet-route')(app);
+require('./routes/affiliate-route')(app);
+require('./routes/games-route')(app);
+require('./routes/payment-route')(app);
+require('./routes/slotes-route')(app);
+require('./routes/user-route')(app);
+require('./routes/admin-route')(app);
 
-app.listen(2000,()=>{console.log("server is running on port 2000")});
+// Frontend fallback for non-API routes
+app.get(/^\/(?!api|auth).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
+
+const PORT = process.env.PORT || 2000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
