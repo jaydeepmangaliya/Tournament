@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import BrandLogo from './BrandLogo';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -1034,8 +1035,8 @@ export default function AdminDashboard() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <div className="flex items-center space-x-1.5">
-            <span className="text-sm font-black text-white tracking-wider">LOCALESPORT</span>
+          <div className="flex items-center space-x-2">
+            <BrandLogo size="sm" />
             <span className="px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/40 text-[8px] font-black uppercase text-amber-300">
               ADMIN
             </span>
@@ -1079,23 +1080,16 @@ export default function AdminDashboard() {
         <div className="p-4 sm:p-5 space-y-5 overflow-y-auto">
           {/* Brand & User Profile */}
           <div className="pb-4 border-b border-zinc-800/80 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0 shadow-lg">
-                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <BrandLogo size="sm" />
+                <span className="px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/40 text-[8px] font-black uppercase text-amber-300 flex-shrink-0">
+                  ADMIN
+                </span>
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-sm font-black text-white tracking-wider truncate">LOCALESPORT</span>
-                  <span className="px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/40 text-[8px] font-black uppercase text-amber-300">
-                    ADMIN
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1.5 text-[10px] text-zinc-400 mt-0.5 truncate">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                  <span className="font-mono text-zinc-300 truncate">{adminUser?.email || 'admin@localesport.com'}</span>
-                </div>
+              <div className="flex items-center space-x-1.5 text-[10px] text-zinc-400 mt-2 truncate pl-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                <span className="font-mono text-zinc-300 truncate">{adminUser?.email || 'admin@localesport.com'}</span>
               </div>
             </div>
             {/* Mobile close button */}

@@ -11,6 +11,7 @@ import AffiliateDashboard from './components/AffiliateDashboard';
 import ReferAndEarn from './components/ReferAndEarn';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLogin from './components/AdminLogin';
+import WinterEffect from './components/WinterEffect';
 
 const App = () => {
   const location = useLocation();
@@ -37,6 +38,7 @@ const App = () => {
 
   return (
     <div className="bg-[#0a0a0e] min-h-screen text-white">
+      {!isAdminRoute && <WinterEffect />}
       {!isAdminRoute && <Header />}
       <Routes>
         <Route path="/" element={<Home />} />

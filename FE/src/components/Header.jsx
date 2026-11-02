@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import WalletModal from './WalletModal';
+import BrandLogo from './BrandLogo';
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -88,22 +89,13 @@ const Header = () => {
       <header className="fixed top-0 left-0 w-full z-40 bg-[#07070a]/95 backdrop-blur-md border-b border-zinc-800/80 px-3 sm:px-6 lg:px-8 py-3">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0">
-              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <span className="text-lg sm:text-xl font-black tracking-tight text-white">
-                LOCAL<span className="text-silver">ESPORT</span>
+          <Link to="/" className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+            <BrandLogo size="md" />
+            {isAffiliate && (
+              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 tracking-wider">
+                Partner
               </span>
-              {isAffiliate && (
-                <span className="text-[9px] font-black uppercase px-1.5 sm:px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 tracking-wider">
-                  Partner
-                </span>
-              )}
-            </div>
+            )}
           </Link>
 
           {/* Desktop Nav - Focused & Clean */}
