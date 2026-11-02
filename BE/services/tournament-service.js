@@ -15,7 +15,10 @@ async function getUserIdFromReq(userPayload) {
 // 1. Get all tournaments with filter options
 tournamentService.getTournaments = async (filters = {}) => {
   try {
-    const { gameSlug, matchType, format, status } = filters;
+    const { gameSlug, matchType, format, status, includeFull } = filters;
+    const targetStatus = status || 'open';
+    const hideFull = includeFull !== true && includeFull !== 'true';
+
     let query = `
       SELECT
         t.*,
@@ -44,41 +47,55 @@ tournamentService.getTournaments = async (filters = {}) => {
       query += ` AND t.format = ?`;
       params.push(format);
     }
-    if (status) {
+    if (targetStatus && targetStatus !== 'all') {
       query += ` AND t.status = ?`;
-      params.push(status);
+      params.push(targetStatus);
     }
 
-    query += ` GROUP BY t.id ORDER BY t.match_start_at ASC`;
+    query += ` GROUP BY t.id`;
+
+    // By default for public players: NEVER show full matches. Only open joinable matches.
+    if (hideFull && targetStatus === 'open') {
+      query += ` HAVING filled_teams < t.total_teams`;
+    }
+
+    query += ` ORDER BY t.id ASC`;
 
     const [tournaments] = await db.promise().query(query, params);
 
+    const mapped = tournaments.map(t => {
+      const totalTeams = t.total_teams;
+      const filledTeams = parseInt(t.filled_teams || 0);
+      const remainingTeams = Math.max(0, totalTeams - filledTeams);
+      const isFull = filledTeams >= totalTeams;
+      const bookedSlots = t.booked_slots_str
+        ? t.booked_slots_str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+        : [];
+
+      return {
+        ...t,
+        entry_fee: parseFloat(t.entry_fee),
+        prize_pool: parseFloat(t.prize_pool),
+        per_kill_prize: parseFloat(t.per_kill_prize || 0),
+        first_prize: parseFloat(t.first_prize || 0),
+        second_prize: parseFloat(t.second_prize || 0),
+        third_prize: parseFloat(t.third_prize || 0),
+        filled_teams: filledTeams,
+        remaining_teams: remainingTeams,
+        filled_players: parseInt(t.filled_players || 0),
+        is_full: isFull,
+        booked_slots: bookedSlots,
+      };
+    });
+
+    // Double-check: ensure full matches never leak through if hideFull is active
+    const result = hideFull && targetStatus === 'open'
+      ? mapped.filter(t => !t.is_full && t.status === 'open' && t.filled_teams < t.total_teams)
+      : mapped;
+
     return {
       status: true,
-      data: tournaments.map(t => {
-        const totalTeams = t.total_teams;
-        const filledTeams = parseInt(t.filled_teams || 0);
-        const remainingTeams = Math.max(0, totalTeams - filledTeams);
-        const isFull = filledTeams >= totalTeams;
-        const bookedSlots = t.booked_slots_str
-          ? t.booked_slots_str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
-          : [];
-
-        return {
-          ...t,
-          entry_fee: parseFloat(t.entry_fee),
-          prize_pool: parseFloat(t.prize_pool),
-          per_kill_prize: parseFloat(t.per_kill_prize || 0),
-          first_prize: parseFloat(t.first_prize || 0),
-          second_prize: parseFloat(t.second_prize || 0),
-          third_prize: parseFloat(t.third_prize || 0),
-          filled_teams: filledTeams,
-          remaining_teams: remainingTeams,
-          filled_players: parseInt(t.filled_players || 0),
-          is_full: isFull,
-          booked_slots: bookedSlots,
-        };
-      }),
+      data: result,
     };
   } catch (error) {
     console.error("getTournaments error:", error);

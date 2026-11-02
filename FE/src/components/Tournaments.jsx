@@ -17,9 +17,9 @@ export default function TournamentsPage() {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
 
-  const fetchTournaments = async () => {
+  const fetchTournaments = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = {};
       if (gameFilter !== 'all') params.gameSlug = gameFilter;
       if (formatFilter !== 'all') params.format = formatFilter;
@@ -35,7 +35,7 @@ export default function TournamentsPage() {
     } catch (err) {
       console.error('Error fetching tournaments:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -56,6 +56,12 @@ export default function TournamentsPage() {
   useEffect(() => {
     fetchTournaments();
     fetchWallet();
+
+    // Auto-refresh match lobbies every 7 seconds so newly spawned matches appear instantly
+    const interval = setInterval(() => {
+      fetchTournaments(true);
+    }, 7000);
+    return () => clearInterval(interval);
   }, [gameFilter, formatFilter]);
 
   const handleJoinClick = (tournament) => {
@@ -180,111 +186,108 @@ export default function TournamentsPage() {
         {/* Tournaments Grid */}
         {loading ? (
           <div className="py-20 text-center text-zinc-500 font-medium">Loading competitive matches...</div>
-        ) : tournaments.length === 0 ? (
-          <div className="py-20 text-center text-zinc-500 bg-[#0e0e13] rounded-2xl border border-zinc-800">
-            <p className="text-base font-bold text-zinc-300 mb-1">No tournaments found for this filter</p>
-            <p className="text-xs text-zinc-500">Select another game or match format above</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tournaments.map((t) => {
-              const totalSlots = t.total_teams;
-              const filled = t.filled_teams;
-              const percent = Math.min(100, Math.round((filled / totalSlots) * 100));
-              const isBR = t.match_type === 'battle_royale';
+        ) : (() => {
+          const joinableTournaments = tournaments.filter(
+            (t) => t.status === 'open' && !t.is_full && t.filled_teams < t.total_teams
+          );
 
-              return (
-                <motion.div
-                  key={t.id}
-                  whileHover={{ y: -3 }}
-                  className="bg-[#0e0e13] border border-zinc-800 hover:border-zinc-600 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between transition duration-300"
-                >
-                  {/* Card Header */}
-                  <div className="p-6 pb-4">
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                        {t.game_name}
-                      </span>
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white text-black">
-                        {t.format.toUpperCase()} {isBR ? '• BR 48' : '• Clash'}
-                      </span>
-                    </div>
+          if (joinableTournaments.length === 0) {
+            return (
+              <div className="py-20 text-center text-zinc-500 bg-[#0e0e13] rounded-2xl border border-zinc-800 space-y-2">
+                <p className="text-base font-bold text-zinc-300">All current lobbies are full or in progress</p>
+                <p className="text-xs text-zinc-500">Auto-Lobby Rebirth is initializing fresh rounds right now. Please wait a moment...</p>
+              </div>
+            );
+          }
 
-                    <h3 className="text-lg font-bold text-white leading-snug">{t.title}</h3>
-                    <div className="flex items-center space-x-3 text-xs text-zinc-400 mt-2 font-mono">
-                      <span>Map: <strong className="text-zinc-200">{t.map_name}</strong></span>
-                      <span>•</span>
-                      <span>
-                        {new Date(t.match_start_at).toLocaleTimeString('en-IN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  </div>
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {joinableTournaments.map((t) => {
+                const totalSlots = t.total_teams;
+                const filled = t.filled_teams;
+                const percent = Math.min(100, Math.round((filled / totalSlots) * 100));
+                const isBR = t.match_type === 'battle_royale';
 
-                  {/* Pricing Specs */}
-                  <div className="px-6 py-3.5 bg-zinc-950/80 border-y border-zinc-800/80 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Entry Fee</span>
-                      <span className="text-sm font-black text-zinc-100">₹{t.entry_fee}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Prize Pool</span>
-                      <span className="text-sm font-black text-white">₹{t.prize_pool}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">
-                        {t.per_kill_prize > 0 ? 'Per Kill' : '1st Prize'}
-                      </span>
-                      <span className="text-sm font-black text-silver">
-                        ₹{t.per_kill_prize > 0 ? t.per_kill_prize : t.first_prize}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Slots Progress & Action */}
-                  <div className="p-6 pt-4 space-y-3.5">
-                    <div>
-                      <div className="flex justify-between text-xs text-zinc-400 mb-1.5 font-semibold">
-                        <span>Slots Filled</span>
-                        <span className="text-zinc-200 font-mono">
-                          {filled} / {totalSlots} {t.players_per_team > 1 ? 'Squads' : 'Players'}
+                return (
+                  <motion.div
+                    key={t.id}
+                    whileHover={{ y: -3 }}
+                    className="bg-[#0e0e13] border border-zinc-800 hover:border-zinc-600 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between transition duration-300"
+                  >
+                    {/* Card Header */}
+                    <div className="p-6 pb-4">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                          {t.game_name}
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white text-black">
+                          {t.format.toUpperCase()} {isBR ? '• BR 48' : '• Clash'}
                         </span>
                       </div>
-                      <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-silver-gradient h-1.5 rounded-full transition-all duration-500"
-                          style={{ width: `${percent}%` }}
-                        ></div>
+
+                      <h3 className="text-lg font-bold text-white leading-snug">{t.title}</h3>
+                      <div className="flex items-center space-x-3 text-xs text-zinc-400 mt-2 font-mono">
+                        <span>Map: <strong className="text-zinc-200">{t.map_name}</strong></span>
+                        <span>•</span>
+                        <span>
+                          {new Date(t.match_start_at).toLocaleTimeString('en-IN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleJoinClick(t)}
-                      disabled={t.is_full || t.status === 'ready' || t.status === 'ongoing' || t.status === 'completed'}
-                      className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition ${
-                        t.is_full || t.status === 'ready' || t.status === 'ongoing'
-                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
-                          : t.status === 'completed'
-                          ? 'bg-zinc-900 text-zinc-600 cursor-not-allowed'
-                          : 'bg-silver-gradient hover:brightness-110 text-black shadow-md'
-                      }`}
-                    >
-                      {t.is_full || t.status === 'ready'
-                        ? 'Match Full (Next Round Live)'
-                        : t.status === 'ongoing'
-                        ? 'Match In Progress'
-                        : t.status === 'completed'
-                        ? 'Match Completed'
-                        : `Register ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}
-                    </button>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+                    {/* Pricing Specs */}
+                    <div className="px-6 py-3.5 bg-zinc-950/80 border-y border-zinc-800/80 grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Entry Fee</span>
+                        <span className="text-sm font-black text-zinc-100">₹{t.entry_fee}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Prize Pool</span>
+                        <span className="text-sm font-black text-white">₹{t.prize_pool}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">
+                          {t.per_kill_prize > 0 ? 'Per Kill' : '1st Prize'}
+                        </span>
+                        <span className="text-sm font-black text-silver">
+                          ₹{t.per_kill_prize > 0 ? t.per_kill_prize : t.first_prize}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Slots Progress & Action */}
+                    <div className="p-6 pt-4 space-y-3.5">
+                      <div>
+                        <div className="flex justify-between text-xs text-zinc-400 mb-1.5 font-semibold">
+                          <span>Slots Filled</span>
+                          <span className="text-zinc-200 font-mono">
+                            {filled} / {totalSlots} {t.players_per_team > 1 ? 'Squads' : 'Players'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-silver-gradient h-1.5 rounded-full transition-all duration-500"
+                            style={{ width: `${percent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleJoinClick(t)}
+                        className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition bg-silver-gradient hover:brightness-110 text-black shadow-md cursor-pointer flex items-center justify-center space-x-1"
+                      >
+                        <span>{`Register ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Squad / Team Registration Modal */}
