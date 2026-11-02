@@ -6,15 +6,19 @@ const db = require("../connection");
 const requireAdmin = (req, res, next) => {
   verifyToken(req, res, async () => {
     try {
-      const lookupId = req.user?.id || 0;
-      const lookupEmail = req.user?.email || "";
-      const [rows] = await db.promise().query(
-        "SELECT id, role, status FROM users WHERE id = ? OR email = ?",
-        [lookupId, lookupEmail]
-      );
-      if (rows.length > 0 && rows[0].role === 'admin' && rows[0].status !== 'banned') {
+      let userRow = null;
+      if (req.user?.id) {
+        const [rows] = await db.promise().query("SELECT id, role, status FROM users WHERE id = ?", [req.user.id]);
+        if (rows.length > 0) userRow = rows[0];
+      }
+      if (!userRow && req.user?.email) {
+        const [rows] = await db.promise().query("SELECT id, role, status FROM users WHERE email = ?", [req.user.email]);
+        if (rows.length > 0) userRow = rows[0];
+      }
+
+      if (userRow && userRow.role === 'admin' && userRow.status !== 'banned') {
         req.user.role = 'admin';
-        req.user.id = rows[0].id;
+        req.user.id = userRow.id;
         return next();
       }
       return res.status(403).json({
@@ -36,6 +40,8 @@ module.exports = (app) => {
 
   // 2. Tournament & Room Management
   router.get("/tournaments", requireAdmin, adminController.getTournaments);
+  router.put("/tournaments/:id", requireAdmin, adminController.updateTournament);
+  router.post("/tournaments/:id/add-team", requireAdmin, adminController.addTeam);
   router.post("/tournaments/:id/room-credentials", requireAdmin, adminController.updateRoomCredentials);
   router.post("/tournaments/:id/status", requireAdmin, adminController.updateStatus);
   router.post("/tournaments/:id/results", requireAdmin, adminController.declareMatchResults);

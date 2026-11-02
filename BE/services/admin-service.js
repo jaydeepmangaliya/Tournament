@@ -244,6 +244,8 @@ adminService.declareMatchResults = async (tournamentId, body) => {
     const teamMap = new Map(teams.map(t => [t.id, t]));
 
     let totalPrizesDistributed = 0;
+    const summaryWinners = [];
+    const summaryKills = [];
 
     // A. Distribute Placement / Winner Rank Prizes
     for (const w of winners) {
@@ -251,6 +253,12 @@ adminService.declareMatchResults = async (tournamentId, body) => {
       const prizeAmount = parseFloat(w.prize || 0);
 
       if (team && prizeAmount > 0) {
+        // Update tournament_teams rank and prize
+        await connection.query(
+          `UPDATE tournament_teams SET rank_position = ?, prize_won = prize_won + ? WHERE id = ?`,
+          [w.rank, prizeAmount, team.id]
+        );
+
         // Credit team leader's winning balance
         await connection.query(
           `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
@@ -270,6 +278,13 @@ adminService.declareMatchResults = async (tournamentId, body) => {
         );
 
         totalPrizesDistributed += prizeAmount;
+        summaryWinners.push({
+          rank: w.rank,
+          teamId: team.id,
+          teamName: team.team_name,
+          slotNumber: team.slot_number,
+          prize: prizeAmount,
+        });
       }
     }
 
@@ -280,6 +295,11 @@ adminService.declareMatchResults = async (tournamentId, body) => {
       const bounty = parseFloat(kb.bountyAmount || 0);
 
       if (team && bounty > 0 && kills > 0) {
+        await connection.query(
+          `UPDATE tournament_teams SET kills = ?, prize_won = prize_won + ? WHERE id = ?`,
+          [kills, bounty, team.id]
+        );
+
         await connection.query(
           `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
           [bounty, team.leader_user_id]
@@ -297,13 +317,27 @@ adminService.declareMatchResults = async (tournamentId, body) => {
         );
 
         totalPrizesDistributed += bounty;
+        summaryKills.push({
+          teamId: team.id,
+          teamName: team.team_name,
+          slotNumber: team.slot_number,
+          kills,
+          bountyAmount: bounty,
+        });
       }
     }
 
-    // Mark tournament as completed
+    const winnerSummary = {
+      winners: summaryWinners,
+      killBounties: summaryKills,
+      totalPrizeDistributed: totalPrizesDistributed,
+      completedAt: new Date(),
+    };
+
+    // Mark tournament as completed and save winner summary
     await connection.query(
-      `UPDATE tournaments SET status = 'completed' WHERE id = ?`,
-      [tournamentId]
+      `UPDATE tournaments SET status = 'completed', winner_summary = ? WHERE id = ?`,
+      [JSON.stringify(winnerSummary), tournamentId]
     );
 
     await connection.commit();

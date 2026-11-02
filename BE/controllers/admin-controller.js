@@ -137,6 +137,32 @@ exports.toggleUserBan = async (req, res) => {
   }
 };
 
+exports.updateTournament = async (req, res) => {
+  try {
+    const result = await tournamentService.updateTournamentAdmin(req.params.id, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin updateTournament error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.addTeam = async (req, res) => {
+  try {
+    const result = await tournamentService.addTeamAdmin(req.params.id, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin addTeam error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
 exports.deleteTournament = async (req, res) => {
   try {
     const result = await tournamentService.deleteTournamentAdmin(req.params.id);

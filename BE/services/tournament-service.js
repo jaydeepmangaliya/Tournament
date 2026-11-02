@@ -606,6 +606,15 @@ tournamentService.getAdminTournaments = async () => {
       const filledTeams = parseInt(t.filled_teams || 0);
       const isReadyToHost = t.status === 'ready' || (filledTeams >= t.total_teams && (!t.room_id || !t.room_password));
 
+      let winnerSummary = t.winner_summary;
+      if (typeof winnerSummary === 'string') {
+        try {
+          winnerSummary = JSON.parse(winnerSummary);
+        } catch (e) {
+          winnerSummary = null;
+        }
+      }
+
       return {
         ...t,
         entry_fee: parseFloat(t.entry_fee),
@@ -621,6 +630,7 @@ tournamentService.getAdminTournaments = async () => {
         is_ready_to_host: isReadyToHost,
         has_credentials: Boolean(t.room_id && t.room_password),
         booked_slots: bookedSlots,
+        winner_summary: winnerSummary,
         teams,
       };
     });
@@ -870,6 +880,165 @@ tournamentService.removeTeamFromTournament = async (tournamentId, teamId) => {
   } catch (error) {
     await connection.rollback();
     console.error("removeTeamFromTournament error:", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// 12. Admin: Update any tournament fields (price, prize, map, start time, etc.)
+tournamentService.updateTournamentAdmin = async (tournamentId, body) => {
+  try {
+    const {
+      title,
+      entry_fee,
+      prize_pool,
+      first_prize,
+      second_prize,
+      third_prize,
+      per_kill_prize,
+      map_name,
+      match_start_at,
+      status,
+      room_id,
+      room_password,
+    } = body;
+
+    const [existing] = await db.promise().query(`SELECT * FROM tournaments WHERE id = ?`, [tournamentId]);
+    if (existing.length === 0) {
+      return { status: false, message: "Tournament not found." };
+    }
+
+    await db.promise().query(
+      `UPDATE tournaments
+       SET title = COALESCE(?, title),
+           entry_fee = COALESCE(?, entry_fee),
+           prize_pool = COALESCE(?, prize_pool),
+           first_prize = COALESCE(?, first_prize),
+           second_prize = COALESCE(?, second_prize),
+           third_prize = COALESCE(?, third_prize),
+           per_kill_prize = COALESCE(?, per_kill_prize),
+           map_name = COALESCE(?, map_name),
+           match_start_at = CASE WHEN ? IS NOT NULL THEN ? ELSE match_start_at END,
+           status = COALESCE(?, status),
+           room_id = COALESCE(?, room_id),
+           room_password = COALESCE(?, room_password)
+       WHERE id = ?`,
+      [
+        title !== undefined ? title : null,
+        entry_fee !== undefined ? parseFloat(entry_fee) : null,
+        prize_pool !== undefined ? parseFloat(prize_pool) : null,
+        first_prize !== undefined ? parseFloat(first_prize) : null,
+        second_prize !== undefined ? parseFloat(second_prize) : null,
+        third_prize !== undefined ? parseFloat(third_prize) : null,
+        per_kill_prize !== undefined ? parseFloat(per_kill_prize) : null,
+        map_name !== undefined ? map_name : null,
+        match_start_at ? new Date(match_start_at) : null,
+        match_start_at ? new Date(match_start_at) : null,
+        status !== undefined ? status : null,
+        room_id !== undefined ? room_id : null,
+        room_password !== undefined ? room_password : null,
+        tournamentId,
+      ]
+    );
+
+    return { status: true, message: `Tournament #${tournamentId} updated successfully.` };
+  } catch (error) {
+    console.error("updateTournamentAdmin error:", error);
+    throw error;
+  }
+};
+
+// 13. Admin: Manually add a player/team to a slot without payment
+tournamentService.addTeamAdmin = async (tournamentId, body) => {
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { slot_number, team_name, leader_user_id, players = [] } = body;
+
+    if (!slot_number || !team_name) {
+      await connection.rollback();
+      return { status: false, message: "Slot number and Team name are required." };
+    }
+
+    const [tRows] = await connection.query(`SELECT * FROM tournaments WHERE id = ? FOR UPDATE`, [tournamentId]);
+    if (tRows.length === 0) {
+      await connection.rollback();
+      return { status: false, message: "Tournament not found." };
+    }
+    const tournament = tRows[0];
+
+    // Check if slot is already occupied
+    const [existingSlot] = await connection.query(
+      `SELECT id FROM tournament_teams WHERE tournament_id = ? AND slot_number = ?`,
+      [tournamentId, slot_number]
+    );
+    if (existingSlot.length > 0) {
+      await connection.rollback();
+      return { status: false, message: `Slot #${slot_number} is already occupied.` };
+    }
+
+    // Default leader to user_id or first available user
+    let leaderId = leader_user_id;
+    if (!leaderId) {
+      const [firstUser] = await connection.query(`SELECT id FROM users LIMIT 1`);
+      leaderId = firstUser[0]?.id || 1;
+    }
+
+    // Insert team
+    const [teamResult] = await connection.query(
+      `INSERT INTO tournament_teams (tournament_id, slot_number, team_name, leader_user_id, entry_fee_paid)
+       VALUES (?, ?, ?, ?, 0)`,
+      [tournamentId, slot_number, team_name, leaderId]
+    );
+    const teamId = teamResult.insertId;
+
+    // Insert players
+    if (players.length > 0) {
+      for (let i = 0; i < players.length; i++) {
+        const p = players[i];
+        await connection.query(
+          `INSERT INTO tournament_participants (
+            tournament_id, team_id, user_id, player_name, in_game_name, in_game_id, phone, is_leader, slot_position
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            tournamentId,
+            teamId,
+            leaderId,
+            p.player_name || p.in_game_name || `Player ${i + 1}`,
+            p.in_game_name || `Player ${i + 1}`,
+            p.in_game_id || `UID-${Date.now()}-${i}`,
+            p.phone || null,
+            i === 0 ? 1 : 0,
+            i + 1,
+          ]
+        );
+      }
+    } else {
+      // Default leader participant
+      await connection.query(
+        `INSERT INTO tournament_participants (
+          tournament_id, team_id, user_id, player_name, in_game_name, in_game_id, is_leader, slot_position
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, 1)`,
+        [tournamentId, teamId, leaderId, team_name, team_name, `UID-${Date.now()}`]
+      );
+    }
+
+    // Check if match is now full
+    const [teamCount] = await connection.query(
+      `SELECT COUNT(*) as cnt FROM tournament_teams WHERE tournament_id = ?`,
+      [tournamentId]
+    );
+    if (teamCount[0].cnt >= tournament.total_teams) {
+      await connection.query(`UPDATE tournaments SET status = 'ready' WHERE id = ?`, [tournamentId]);
+    }
+
+    await connection.commit();
+    return { status: true, message: `Team "${team_name}" added to Slot #${slot_number} by Admin!` };
+  } catch (error) {
+    await connection.rollback();
+    console.error("addTeamAdmin error:", error);
     throw error;
   } finally {
     connection.release();

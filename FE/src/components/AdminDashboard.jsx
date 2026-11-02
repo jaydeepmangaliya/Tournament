@@ -29,6 +29,34 @@ export default function AdminDashboard() {
   const [expandedRosterId, setExpandedRosterId] = useState(null);
   const [copiedUIDsId, setCopiedUIDsId] = useState(null);
 
+  // Edit Tournament Modal state
+  const [editingTournament, setEditingTournament] = useState(null);
+  const [editTourneyForm, setEditTourneyForm] = useState({
+    title: '',
+    entry_fee: 0,
+    prize_pool: 0,
+    first_prize: 0,
+    second_prize: 0,
+    third_prize: 0,
+    per_kill_prize: 0,
+    map_name: '',
+    match_start_at: '',
+    status: 'open',
+    room_id: '',
+    room_password: '',
+  });
+
+  // Add Player / Team to Slot Modal state
+  const [addingTeamTournament, setAddingTeamTournament] = useState(null);
+  const [addTeamForm, setAddTeamForm] = useState({
+    slot_number: 1,
+    team_name: '',
+    in_game_name: '',
+    in_game_id: '',
+    phone: '',
+    leader_user_id: '',
+  });
+
   // Winner Declaration Modal state (opened directly on a live match)
   const [declaringWinnerMatch, setDeclaringWinnerMatch] = useState(null);
   const [clashWinnerTeamId, setClashWinnerTeamId] = useState('');
@@ -223,6 +251,127 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to delete tournament.');
+    }
+  };
+
+  // OPEN EDIT TOURNAMENT MODAL
+  const handleOpenEditTournament = (t) => {
+    let formattedStart = '';
+    if (t.match_start_at) {
+      try {
+        const d = new Date(t.match_start_at);
+        formattedStart = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      } catch (e) {}
+    }
+
+    setEditingTournament(t);
+    setEditTourneyForm({
+      title: t.title || '',
+      entry_fee: t.entry_fee || 0,
+      prize_pool: t.prize_pool || 0,
+      first_prize: t.first_prize || 0,
+      second_prize: t.second_prize || 0,
+      third_prize: t.third_prize || 0,
+      per_kill_prize: t.per_kill_prize || 0,
+      map_name: t.map_name || 'Bermuda',
+      match_start_at: formattedStart,
+      status: t.status || 'open',
+      room_id: t.room_id || '',
+      room_password: t.room_password || '',
+    });
+  };
+
+  const handleSaveEditTournament = async (e) => {
+    e.preventDefault();
+    if (!editingTournament) return;
+
+    try {
+      setSubmitting(true);
+      const headers = { Authorization: `Bearer ${adminToken}` };
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${editingTournament.id}`,
+        editTourneyForm,
+        { headers }
+      );
+
+      if (res.data.status) {
+        setMessage(`Tournament #${editingTournament.id} updated successfully!`);
+        setTimeout(() => setMessage(''), 4500);
+        setEditingTournament(null);
+        loadAllAdminData();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update tournament.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // OPEN ADD TEAM / PLAYER MODAL
+  const handleOpenAddTeam = (t) => {
+    // Determine first open slot
+    const booked = new Set(t.booked_slots || []);
+    let firstOpen = 1;
+    for (let s = 1; s <= t.total_teams; s++) {
+      if (!booked.has(s)) {
+        firstOpen = s;
+        break;
+      }
+    }
+
+    setAddingTeamTournament(t);
+    setAddTeamForm({
+      slot_number: firstOpen,
+      team_name: '',
+      in_game_name: '',
+      in_game_id: '',
+      phone: '',
+      leader_user_id: '',
+    });
+  };
+
+  const handleSaveAddTeam = async (e) => {
+    e.preventDefault();
+    if (!addingTeamTournament) return;
+
+    if (!addTeamForm.team_name || !addTeamForm.in_game_name) {
+      alert('Please enter Team name and In-Game Name (IGN).');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const headers = { Authorization: `Bearer ${adminToken}` };
+      const payload = {
+        slot_number: parseInt(addTeamForm.slot_number),
+        team_name: addTeamForm.team_name.trim(),
+        leader_user_id: addTeamForm.leader_user_id ? parseInt(addTeamForm.leader_user_id) : undefined,
+        players: [
+          {
+            player_name: addTeamForm.team_name.trim(),
+            in_game_name: addTeamForm.in_game_name.trim(),
+            in_game_id: addTeamForm.in_game_id.trim() || `UID-${Date.now()}`,
+            phone: addTeamForm.phone.trim() || null,
+          },
+        ],
+      };
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${addingTeamTournament.id}/add-team`,
+        payload,
+        { headers }
+      );
+
+      if (res.data.status) {
+        setMessage(`Player added to Slot #${addTeamForm.slot_number} successfully!`);
+        setTimeout(() => setMessage(''), 4500);
+        setAddingTeamTournament(null);
+        loadAllAdminData();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add player to slot.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -637,18 +786,30 @@ export default function AdminDashboard() {
   const renderParticipantRoster = (tournament) => {
     if (expandedRosterId !== tournament.id) return null;
 
+    const canAddPlayers = tournament.status === 'open' || tournament.status === 'ready';
+
     return (
-      <div className="mt-3 bg-[#08080c] p-3 rounded-xl border border-zinc-800 max-h-72 overflow-y-auto space-y-2 text-xs">
-        <div className="flex justify-between items-center pb-1 border-b border-zinc-800/80">
+      <div className="mt-3 bg-[#08080c] p-3 rounded-xl border border-zinc-800 max-h-80 overflow-y-auto space-y-2 text-xs">
+        <div className="flex flex-wrap justify-between items-center gap-2 pb-1.5 border-b border-zinc-800/80">
           <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
-            Registered Slots & Players ({tournament.teams?.length || 0} Booked):
+            Participants ({tournament.teams?.length || 0} / {tournament.total_teams} Booked):
           </span>
-          <button
-            onClick={() => handleCopyAllUIDs(tournament)}
-            className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 transition"
-          >
-            {copiedUIDsId === tournament.id ? 'UIDs Copied!' : 'Copy All UIDs'}
-          </button>
+          <div className="flex items-center space-x-1.5">
+            {canAddPlayers && (
+              <button
+                onClick={() => handleOpenAddTeam(tournament)}
+                className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 text-[10px] font-bold text-emerald-300 transition flex items-center space-x-1"
+              >
+                <span>+ Add Player</span>
+              </button>
+            )}
+            <button
+              onClick={() => handleCopyAllUIDs(tournament)}
+              className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 transition"
+            >
+              {copiedUIDsId === tournament.id ? 'UIDs Copied!' : 'Copy All UIDs'}
+            </button>
+          </div>
         </div>
 
         {tournament.teams?.length === 0 ? (
@@ -881,9 +1042,21 @@ export default function AdminDashboard() {
                             <span>Pool: ₹{t.prize_pool}</span>
                           </div>
                         </div>
-                        <span className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] font-mono font-bold text-zinc-300">
-                          {t.format.toUpperCase()}
-                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => handleOpenEditTournament(t)}
+                            title="Edit Match Details"
+                            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <span className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] font-mono font-bold text-zinc-300">
+                            {t.format.toUpperCase()}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Room ID & Password Input */}
@@ -970,7 +1143,7 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-base font-bold text-white">Open Matches ({openMatches.length})</h2>
                 <p className="text-xs text-zinc-400">
-                  Lobbies currently open for players to register and pick seats (#1 to #48).
+                  Lobbies currently open. As an Admin, you can edit prices/prizes, add players to open slots, or kick/refund players anytime.
                 </p>
               </div>
               <button
@@ -1011,7 +1184,7 @@ export default function AdminDashboard() {
                         <div className="flex items-center space-x-2 text-[11px] text-zinc-400 font-mono mt-1">
                           <span>Map: {t.map_name}</span>
                           <span>•</span>
-                          <span>Fee: ₹{t.entry_fee}</span>
+                          <span className="text-amber-300 font-bold">Fee: ₹{t.entry_fee}</span>
                           <span>•</span>
                           <span>Pool: ₹{t.prize_pool}</span>
                         </div>
@@ -1035,7 +1208,33 @@ export default function AdminDashboard() {
 
                       {/* Actions */}
                       <div className="space-y-2 pt-2 border-t border-zinc-800/80">
-                        <div className="flex items-center gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleOpenEditTournament(t)}
+                            title="Edit Match, Price & Settings"
+                            className="py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold rounded-xl border border-zinc-700 transition flex items-center justify-center space-x-1.5 shadow"
+                          >
+                            <svg className="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                            <span>Edit Match</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenAddTeam(t)}
+                            title="Add Player to open slot"
+                            className="py-2 px-3 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-700 transition flex items-center justify-center space-x-1.5 shadow"
+                          >
+                            <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <line x1="12" y1="5" x2="12" y2="19" />
+                              <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            <span>+ Add Player</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
                             className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
@@ -1095,9 +1294,21 @@ export default function AdminDashboard() {
                         <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                           {t.game_name} • {t.format.toUpperCase()}
                         </span>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 animate-pulse">
-                          PLAYING NOW
-                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => handleOpenEditTournament(t)}
+                            title="Edit Match"
+                            className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 animate-pulse">
+                            PLAYING NOW
+                          </span>
+                        </div>
                       </div>
 
                       <h3 className="text-base font-bold text-white mt-2 leading-snug">{t.title}</h3>
@@ -1156,7 +1367,7 @@ export default function AdminDashboard() {
             <div>
               <h2 className="text-base font-bold text-white">Finished Matches ({completedMatches.length})</h2>
               <p className="text-xs text-zinc-400">
-                Matches that have finished and prize money has been transferred to player wallets.
+                Matches that have finished with winner details and prize money transferred to player wallets.
               </p>
             </div>
 
@@ -1170,51 +1381,147 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedMatches.map((t) => (
-                  <div key={t.id} className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3 shadow-lg">
-                    <div>
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                          {t.game_name} • {t.format.toUpperCase()}
-                        </span>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
-                          COMPLETED
-                        </span>
+                {completedMatches.map((t) => {
+                  const ws = t.winner_summary;
+                  let rank1 = ws?.rank1 || ws?.winners?.find((w) => w.rank === 1);
+                  let runners = ws?.winners?.filter((w) => w.rank > 1) || [];
+
+                  // Fallback: check if teams array has rank_position or prize_won
+                  if (!rank1 && t.teams?.length) {
+                    const teamRank1 = t.teams.find((tm) => tm.rank_position === 1 || parseFloat(tm.prize_won || 0) > 0);
+                    if (teamRank1) {
+                      rank1 = {
+                        team_name: teamRank1.team_name,
+                        slot_number: teamRank1.slot_number,
+                        leader_name: teamRank1.leader_name,
+                        prize: parseFloat(teamRank1.prize_won || t.first_prize || t.prize_pool),
+                      };
+                    }
+                    const teamRunners = t.teams.filter((tm) => tm.rank_position > 1);
+                    if (teamRunners.length > 0 && runners.length === 0) {
+                      runners = teamRunners.map((tm) => ({
+                        rank: tm.rank_position,
+                        team_name: tm.team_name,
+                        slot_number: tm.slot_number,
+                        prize: parseFloat(tm.prize_won || 0),
+                      }));
+                    }
+                  }
+
+                  const hasWinnerData = Boolean(ws || rank1);
+
+                  return (
+                    <div key={t.id} className="bg-[#0c0c10] border border-zinc-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3.5 shadow-lg">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                            {t.game_name} • {t.format.toUpperCase()}
+                          </span>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
+                            COMPLETED
+                          </span>
+                        </div>
+
+                        <h3 className="text-base font-bold text-white mt-2 leading-snug">{t.title}</h3>
+                        <div className="flex items-center space-x-2 text-[11px] text-zinc-400 font-mono mt-1">
+                          <span>Map: {t.map_name}</span>
+                          <span>•</span>
+                          <span>Fee: ₹{t.entry_fee}</span>
+                          <span>•</span>
+                          <span>Pool: ₹{t.prize_pool}</span>
+                        </div>
+
+                        {/* PROMINENT WINNERS SHOWCASE */}
+                        {hasWinnerData ? (
+                          <div className="mt-3 bg-gradient-to-br from-amber-950/40 via-[#14141d] to-[#0c0c10] p-3 rounded-xl border border-amber-500/40 space-y-2 text-xs">
+                            <div className="flex items-center space-x-1.5 text-amber-300 font-bold text-[11px] uppercase tracking-wider">
+                              <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                                <path d="M4 22h16" />
+                                <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+                                <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+                                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                              </svg>
+                              <span>Official Match Winner:</span>
+                            </div>
+
+                            {/* Rank 1 Booyah Card */}
+                            {rank1 && (
+                              <div className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/40 flex justify-between items-center text-white font-mono">
+                                <div className="flex items-center space-x-2 flex-wrap">
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-500 text-black font-black text-[9px] uppercase tracking-wider">
+                                    1ST BOOYAH
+                                  </span>
+                                  <span className="font-bold text-xs text-white">
+                                    {rank1.teamName || rank1.team_name}
+                                  </span>
+                                  {(rank1.slotNumber || rank1.slot_number) && (
+                                    <span className="text-amber-300 text-[10px]">
+                                      (Slot #{rank1.slotNumber || rank1.slot_number})
+                                    </span>
+                                  )}
+                                  {rank1.leader_name && (
+                                    <span className="text-zinc-400 text-[10px]">
+                                      [{rank1.leader_name}]
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-amber-400 font-black text-sm">
+                                  +₹{rank1.prize}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Runners */}
+                            {runners.map((w) => (
+                              <div key={w.rank} className="flex justify-between items-center text-[11px] px-2.5 py-1.5 bg-black/40 rounded-lg border border-zinc-800 font-mono">
+                                <span className="text-zinc-300">
+                                  {w.rank === 2 ? '2nd Place' : '3rd Place'}: <strong>{w.teamName || w.team_name}</strong>{' '}
+                                  {(w.slotNumber || w.slot_number) ? `(Slot #${w.slotNumber || w.slot_number})` : ''}
+                                </span>
+                                <span className="text-zinc-200 font-bold">+₹{w.prize}</span>
+                              </div>
+                            ))}
+
+                            {/* Frag Bounties */}
+                            {ws?.killBounties?.map((kb) => (
+                              <div key={kb.teamId} className="flex justify-between items-center text-[10px] text-zinc-400 font-mono px-1">
+                                <span>Kills: {kb.teamName} ({kb.kills} frags)</span>
+                                <span className="text-emerald-400">+₹{kb.bountyAmount}</span>
+                              </div>
+                            ))}
+
+                            <div className="pt-1.5 border-t border-zinc-800/80 flex justify-between items-center text-[10px] text-zinc-400 font-mono">
+                              <span>Total Prize Payout:</span>
+                              <span className="text-emerald-400 font-bold">
+                                ₹{ws?.totalPrizeDistributed || rank1?.prize || t.prize_pool} Transferred
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 bg-[#121218] p-3 rounded-xl border border-zinc-800 text-xs flex justify-between items-center">
+                            <span className="text-zinc-400">Prizes Paid:</span>
+                            <span className="font-mono text-emerald-400 font-bold">
+                              ₹{t.prize_pool} Transferred to Winner Wallets
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <h3 className="text-base font-bold text-white mt-2 leading-snug">{t.title}</h3>
-                      <div className="flex items-center space-x-2 text-[11px] text-zinc-400 font-mono mt-1">
-                        <span>Map: {t.map_name}</span>
-                        <span>•</span>
-                        <span>Fee: ₹{t.entry_fee}</span>
-                        <span>•</span>
-                        <span>Pool: ₹{t.prize_pool}</span>
-                      </div>
+                      <div className="pt-2 border-t border-zinc-800">
+                        <button
+                          onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
+                          className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
+                        >
+                          {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
+                        </button>
 
-                      <div className="mt-3 bg-[#121218] p-3 rounded-xl border border-zinc-800 text-xs space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-zinc-500">Filled Teams:</span>
-                          <span className="font-mono font-bold text-white">{t.filled_teams} / {t.total_teams}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-zinc-500">Prizes:</span>
-                          <span className="font-mono text-emerald-400 font-bold">Paid to Winner Wallets</span>
-                        </div>
+                        {renderParticipantRoster(t)}
                       </div>
                     </div>
-
-                    <div className="pt-2 border-t border-zinc-800">
-                      <button
-                        onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                        className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
-                      >
-                        {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
-                      </button>
-
-                      {renderParticipantRoster(t)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1836,6 +2143,309 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: EDIT TOURNAMENT DETAILS (PRICES, PRIZES, MAP, TIME, STATUS)        */}
+        {/* ========================================================================= */}
+        {editingTournament && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-xl bg-[#0e0e14] border border-zinc-700 rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
+                    Admin Match Editor
+                  </span>
+                  <h3 className="text-base font-bold text-white">Edit Match #{editingTournament.id}</h3>
+                  <p className="text-xs text-zinc-400">Modify entry fees, prize pool, schedule, map, or status</p>
+                </div>
+                <button
+                  onClick={() => setEditingTournament(null)}
+                  className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditTournament} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Match Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editTourneyForm.title}
+                    onChange={(e) => setEditTourneyForm({ ...editTourneyForm, title: e.target.value })}
+                    className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-sans focus:outline-none focus:border-zinc-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-amber-300 mb-1">Entry Fee (₹) *</label>
+                    <input
+                      type="number"
+                      value={editTourneyForm.entry_fee}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, entry_fee: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-300 mb-1">Prize Pool (₹) *</label>
+                    <input
+                      type="number"
+                      value={editTourneyForm.prize_pool}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, prize_pool: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Per Kill (₹)</label>
+                    <input
+                      type="number"
+                      value={editTourneyForm.per_kill_prize}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, per_kill_prize: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Map Name</label>
+                    <input
+                      type="text"
+                      value={editTourneyForm.map_name}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, map_name: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-sans focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-amber-400 mb-1">1st Prize (₹)</label>
+                    <input
+                      type="number"
+                      value={editTourneyForm.first_prize}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, first_prize: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-300 mb-1">2nd Prize (₹)</label>
+                    <input
+                      type="number"
+                      value={editTourneyForm.second_prize}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, second_prize: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-amber-700 mb-1">3rd Prize (₹)</label>
+                    <input
+                      type="number"
+                      value={editTourneyForm.third_prize}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, third_prize: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Match Start At</label>
+                    <input
+                      type="datetime-local"
+                      value={editTourneyForm.match_start_at}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, match_start_at: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Match Status</label>
+                    <select
+                      value={editTourneyForm.status}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, status: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-sans focus:outline-none"
+                    >
+                      <option value="open">Open (Accepting Players)</option>
+                      <option value="ready">Ready (100% Full)</option>
+                      <option value="ongoing">Ongoing (Playing Live)</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-zinc-800">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Room ID</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 8492048"
+                      value={editTourneyForm.room_id}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, room_id: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Room Password</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 7788"
+                      value={editTourneyForm.room_password}
+                      onChange={(e) => setEditTourneyForm({ ...editTourneyForm, room_password: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTournament(null)}
+                    className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 py-2 bg-silver-gradient text-black font-black uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg"
+                  >
+                    {submitting ? 'Saving Changes...' : 'Save Match Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: ADMIN ADD PLAYER TO OPEN SLOT                                      */}
+        {/* ========================================================================= */}
+        {addingTeamTournament && (() => {
+          const booked = new Set(addingTeamTournament.booked_slots || []);
+          const openSlotsList = [];
+          for (let s = 1; s <= addingTeamTournament.total_teams; s++) {
+            if (!booked.has(s)) openSlotsList.push(s);
+          }
+
+          return (
+            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-full max-w-md bg-[#0e0e14] border border-zinc-700 rounded-3xl p-6 shadow-2xl space-y-4"
+              >
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
+                      Admin Registration
+                    </span>
+                    <h3 className="text-base font-bold text-white">Add Player to Match #{addingTeamTournament.id}</h3>
+                    <p className="text-xs text-zinc-400">Directly assign a player or squad into an open slot</p>
+                  </div>
+                  <button
+                    onClick={() => setAddingTeamTournament(null)}
+                    className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveAddTeam} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">
+                      Choose Open Slot ({openSlotsList.length} Available) *
+                    </label>
+                    <select
+                      value={addTeamForm.slot_number}
+                      onChange={(e) => setAddTeamForm({ ...addTeamForm, slot_number: parseInt(e.target.value) })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                    >
+                      {openSlotsList.map((s) => (
+                        <option key={s} value={s}>
+                          Slot #{s} (Free)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Team / Player Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. TotalGaming or Alpha Squad"
+                      value={addTeamForm.team_name}
+                      onChange={(e) => setAddTeamForm({ ...addTeamForm, team_name: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-sans focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">In-Game Name (IGN) *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. TG_Ajjubhai"
+                        value={addTeamForm.in_game_name}
+                        onChange={(e) => setAddTeamForm({ ...addTeamForm, in_game_name: e.target.value })}
+                        className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">In-Game Character UID</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 192847192"
+                        value={addTeamForm.in_game_id}
+                        onChange={(e) => setAddTeamForm({ ...addTeamForm, in_game_id: e.target.value })}
+                        className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Player Phone Number (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 9876543210"
+                      value={addTeamForm.phone}
+                      onChange={(e) => setAddTeamForm({ ...addTeamForm, phone: e.target.value })}
+                      className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setAddingTeamTournament(null)}
+                      className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-1 py-2 bg-silver-gradient text-black font-black uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow-lg"
+                    >
+                      {submitting ? 'Registering...' : 'Register into Slot'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          );
+        })()}
 
         {/* ========================================================================= */}
         {/* STEP 4: ENTER WINNER & GIVE PRIZE MODAL (OPENS DIRECTLY ON A LIVE MATCH) */}
