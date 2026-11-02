@@ -1,7 +1,7 @@
 // src/App.jsx
 import React from 'react';
 import Header from './components/Header';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Home from './components/Home';
 import Tournaments from './components/Tournaments';
 import Payment from './components/Payment';
@@ -13,6 +13,9 @@ import AdminDashboard from './components/AdminDashboard';
 import AdminLogin from './components/AdminLogin';
 
 const App = () => {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
   React.useEffect(() => {
     document.title = "LocalEsport - Competitive Gaming Platform";
     const faviconSvg = `
@@ -34,7 +37,7 @@ const App = () => {
 
   return (
     <div className="bg-[#0a0a0e] min-h-screen text-white">
-      <Header />
+      {!isAdminRoute && <Header />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/tournaments" element={<Tournaments />} />

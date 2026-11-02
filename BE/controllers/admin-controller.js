@@ -136,3 +136,55 @@ exports.toggleUserBan = async (req, res) => {
     return res.status(500).json({ status: false, message: error.message });
   }
 };
+
+exports.deleteTournament = async (req, res) => {
+  try {
+    const result = await tournamentService.deleteTournamentAdmin(req.params.id);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin deleteTournament error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.removeTeamFromTournament = async (req, res) => {
+  try {
+    const result = await tournamentService.removeTeamFromTournament(req.params.id, req.params.teamId);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin removeTeamFromTournament error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const result = await adminService.deleteUser(req.params.id, req.user.id);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin deleteUser error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.updateUser = async (req, res) => {
+  try {
+    const result = await adminService.updateUser(req.params.id, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin updateUser error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};

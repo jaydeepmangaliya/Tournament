@@ -756,5 +756,125 @@ tournamentService.createTournamentAdmin = async (body) => {
   }
 };
 
+// 10. Admin: Delete tournament and refund active participants
+tournamentService.deleteTournamentAdmin = async (tournamentId) => {
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [tRows] = await connection.query(`SELECT * FROM tournaments WHERE id = ? FOR UPDATE`, [tournamentId]);
+    if (tRows.length === 0) {
+      await connection.rollback();
+      return { status: false, message: "Tournament not found." };
+    }
+    const tournament = tRows[0];
+
+    // If tournament was not finalized, refund entry fees
+    if (tournament.status !== 'completed' && tournament.status !== 'cancelled') {
+      const [teams] = await connection.query(
+        `SELECT id, leader_user_id, entry_fee_paid FROM tournament_teams WHERE tournament_id = ?`,
+        [tournamentId]
+      );
+      for (const team of teams) {
+        const fee = parseFloat(team.entry_fee_paid || 0);
+        if (fee > 0) {
+          await connection.query(
+            `UPDATE wallets SET deposit_balance = deposit_balance + ? WHERE user_id = ?`,
+            [fee, team.leader_user_id]
+          );
+          await connection.query(
+            `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+             VALUES (?, 'deposit', 'deposit', ?, ?, ?, 'completed')`,
+            [
+              team.leader_user_id,
+              fee,
+              `Refund: Tournament #${tournamentId} (${tournament.title}) deleted by Admin`,
+              tournamentId.toString(),
+            ]
+          );
+        }
+      }
+    }
+
+    // Delete participants
+    await connection.query(`DELETE FROM tournament_participants WHERE tournament_id = ?`, [tournamentId]);
+    // Delete teams
+    await connection.query(`DELETE FROM tournament_teams WHERE tournament_id = ?`, [tournamentId]);
+    // Delete tournament
+    await connection.query(`DELETE FROM tournaments WHERE id = ?`, [tournamentId]);
+
+    await connection.commit();
+    return { status: true, message: `Tournament #${tournamentId} deleted and players refunded successfully.` };
+  } catch (error) {
+    await connection.rollback();
+    console.error("deleteTournamentAdmin error:", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// 11. Admin: Remove/kick a team from a slot and refund entry fee
+tournamentService.removeTeamFromTournament = async (tournamentId, teamId) => {
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [teamRows] = await connection.query(
+      `SELECT * FROM tournament_teams WHERE id = ? AND tournament_id = ? FOR UPDATE`,
+      [teamId, tournamentId]
+    );
+    if (teamRows.length === 0) {
+      await connection.rollback();
+      return { status: false, message: "Team not found in this tournament." };
+    }
+    const team = teamRows[0];
+
+    const [tRows] = await connection.query(`SELECT * FROM tournaments WHERE id = ? FOR UPDATE`, [tournamentId]);
+    const tournament = tRows[0];
+
+    // Refund entry fee if paid
+    const fee = parseFloat(team.entry_fee_paid || 0);
+    if (fee > 0) {
+      await connection.query(
+        `UPDATE wallets SET deposit_balance = deposit_balance + ? WHERE user_id = ?`,
+        [fee, team.leader_user_id]
+      );
+      await connection.query(
+        `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+         VALUES (?, 'deposit', 'deposit', ?, ?, ?, 'completed')`,
+        [
+          team.leader_user_id,
+          fee,
+          `Refund: Slot #${team.slot_number} booking removed by Admin (${tournament?.title || ''})`,
+          tournamentId.toString(),
+        ]
+      );
+    }
+
+    // Remove team participants
+    await connection.query(`DELETE FROM tournament_participants WHERE team_id = ?`, [teamId]);
+    // Remove team
+    await connection.query(`DELETE FROM tournament_teams WHERE id = ?`, [teamId]);
+
+    // If tournament was marked 'ready', reopen it since a slot was freed
+    if (tournament && tournament.status === 'ready') {
+      await connection.query(`UPDATE tournaments SET status = 'open' WHERE id = ?`, [tournamentId]);
+    }
+
+    await connection.commit();
+    return {
+      status: true,
+      message: `Team "${team.team_name}" removed from Slot #${team.slot_number}. Fee of ₹${fee} refunded to wallet.`,
+    };
+  } catch (error) {
+    await connection.rollback();
+    console.error("removeTeamFromTournament error:", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = tournamentService;
 

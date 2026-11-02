@@ -14,9 +14,9 @@ export default function AdminLogin() {
 
   // If already logged in as admin, redirect directly to /admin
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (token && user?.role === 'admin') {
+    const adminToken = localStorage.getItem('admin_token');
+    const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
+    if (adminToken && adminUser?.role === 'admin') {
       navigate('/admin', { replace: true });
     }
   }, [navigate]);
@@ -48,9 +48,9 @@ export default function AdminLogin() {
           return;
         }
 
-        // Save admin session
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        // Save isolated admin session
+        localStorage.setItem('admin_token', token);
+        localStorage.setItem('admin_user', JSON.stringify(user));
 
         setSuccess('Authentication successful! Redirecting to Organizer Console...');
         setTimeout(() => {

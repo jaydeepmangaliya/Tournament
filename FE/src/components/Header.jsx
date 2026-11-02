@@ -58,9 +58,7 @@ const Header = () => {
   };
 
   // CLEAN DYNAMIC NAVIGATION BASED ON USER ROLE
-  const isAdmin = user?.role === 'admin';
   const isAffiliate = user?.role === 'affiliate';
-  const isPlayer = user && user.role !== 'affiliate' && user.role !== 'admin';
   const isGuest = !user;
 
   let navLinks = [];
@@ -69,19 +67,13 @@ const Header = () => {
       { label: 'Home', path: '/' },
       { label: 'Tournaments', path: '/tournaments' },
     ];
-  } else if (isAdmin) {
-    navLinks = [
-      { label: 'Admin Console', path: '/admin' },
-      { label: 'Tournaments', path: '/tournaments' },
-      { label: 'My Matches', path: '/yourmatches' },
-    ];
   } else if (isAffiliate) {
     navLinks = [
       { label: 'Partner Dashboard', path: '/affiliate' },
       { label: 'All Tournaments', path: '/tournaments' },
     ];
   } else {
-    // Player
+    // Player / regular user
     navLinks = [
       { label: 'Tournaments', path: '/tournaments' },
       { label: 'My Matches', path: '/yourmatches' },

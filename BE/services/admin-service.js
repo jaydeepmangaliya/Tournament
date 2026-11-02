@@ -399,4 +399,139 @@ adminService.toggleUserBan = async (userId, targetStatus) => {
   }
 };
 
+// 8. Delete User / Affiliate Completely
+adminService.deleteUser = async (userId, adminId) => {
+  if (parseInt(userId) === parseInt(adminId)) {
+    return { status: false, message: "You cannot delete your own admin account." };
+  }
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [uRows] = await connection.query(`SELECT * FROM users WHERE id = ?`, [userId]);
+    if (uRows.length === 0) {
+      await connection.rollback();
+      return { status: false, message: "User not found." };
+    }
+
+    // Delete user participants
+    await connection.query(`DELETE FROM tournament_participants WHERE user_id = ?`, [userId]);
+    // Delete teams led by user and their participants
+    const [teams] = await connection.query(`SELECT id FROM tournament_teams WHERE leader_user_id = ?`, [userId]);
+    for (const t of teams) {
+      await connection.query(`DELETE FROM tournament_participants WHERE team_id = ?`, [t.id]);
+    }
+    await connection.query(`DELETE FROM tournament_teams WHERE leader_user_id = ?`, [userId]);
+
+    // Delete wallet transactions & withdrawals & wallet
+    await connection.query(`DELETE FROM wallet_transactions WHERE user_id = ?`, [userId]);
+    await connection.query(`DELETE FROM withdrawals WHERE user_id = ?`, [userId]);
+    await connection.query(`DELETE FROM wallets WHERE user_id = ?`, [userId]);
+
+    // Finally delete user
+    await connection.query(`DELETE FROM users WHERE id = ?`, [userId]);
+
+    await connection.commit();
+    return { status: true, message: `User #${userId} and all related records have been deleted.` };
+  } catch (error) {
+    await connection.rollback();
+    console.error("deleteUser error:", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// 9. Update User / Affiliate Details & Balances
+adminService.updateUser = async (userId, data) => {
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const {
+      name,
+      email,
+      phone,
+      role,
+      status,
+      referral_code,
+      deposit_balance,
+      winning_balance,
+      referral_balance,
+    } = data;
+
+    // Check user exists
+    const [existing] = await connection.query(`SELECT * FROM users WHERE id = ?`, [userId]);
+    if (existing.length === 0) {
+      await connection.rollback();
+      return { status: false, message: "User not found." };
+    }
+
+    // Update user row
+    await connection.query(
+      `UPDATE users
+       SET name = COALESCE(?, name),
+           email = COALESCE(?, email),
+           phone = COALESCE(?, phone),
+           role = COALESCE(?, role),
+           status = COALESCE(?, status),
+           referral_code = COALESCE(?, referral_code)
+       WHERE id = ?`,
+      [
+        name !== undefined ? name : null,
+        email !== undefined ? email : null,
+        phone !== undefined ? phone : null,
+        role !== undefined ? role : null,
+        status !== undefined ? status : null,
+        referral_code !== undefined ? referral_code : null,
+        userId,
+      ]
+    );
+
+    // Update wallet row if balances provided
+    if (deposit_balance !== undefined || winning_balance !== undefined || referral_balance !== undefined) {
+      const [wRows] = await connection.query(`SELECT * FROM wallets WHERE user_id = ?`, [userId]);
+      if (wRows.length > 0) {
+        await connection.query(
+          `UPDATE wallets
+           SET deposit_balance = CASE WHEN ? IS NOT NULL THEN ? ELSE deposit_balance END,
+               winning_balance = CASE WHEN ? IS NOT NULL THEN ? ELSE winning_balance END,
+               referral_balance = CASE WHEN ? IS NOT NULL THEN ? ELSE referral_balance END
+           WHERE user_id = ?`,
+          [
+            deposit_balance !== undefined ? deposit_balance : null,
+            deposit_balance !== undefined ? deposit_balance : null,
+            winning_balance !== undefined ? winning_balance : null,
+            winning_balance !== undefined ? winning_balance : null,
+            referral_balance !== undefined ? referral_balance : null,
+            referral_balance !== undefined ? referral_balance : null,
+            userId,
+          ]
+        );
+      } else {
+        await connection.query(
+          `INSERT INTO wallets (user_id, deposit_balance, winning_balance, referral_balance)
+           VALUES (?, ?, ?, ?)`,
+          [
+            userId,
+            deposit_balance !== undefined ? deposit_balance : 0,
+            winning_balance !== undefined ? winning_balance : 0,
+            referral_balance !== undefined ? referral_balance : 0,
+          ]
+        );
+      }
+    }
+
+    await connection.commit();
+    return { status: true, message: `User #${userId} details updated successfully.` };
+  } catch (error) {
+    await connection.rollback();
+    console.error("updateUser error:", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = adminService;
+
