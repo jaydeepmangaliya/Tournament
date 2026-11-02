@@ -42,6 +42,8 @@ export default function SquadRegisterModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [alreadyRegistered, setAlreadyRegistered] = useState(Boolean(tournament?.is_registered));
+  const [mySlotNumber, setMySlotNumber] = useState(tournament?.my_slot_number || null);
 
   // Fetch real-time live tournament data and booked slots from DB
   useEffect(() => {
@@ -49,10 +51,17 @@ export default function SquadRegisterModal({
     const fetchLiveRoster = async () => {
       try {
         setLoadingDetails(true);
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments/${tournament.id}`);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments/${tournament.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (res.data.status && isMounted) {
           const liveBooked = res.data.data.booked_slots || [];
           setBookedSlots(liveBooked);
+
+          if (res.data.data.is_registered) {
+            setAlreadyRegistered(true);
+            setMySlotNumber(res.data.data.my_team?.slot_number || null);
+          }
 
           // Find first unbooked slot
           const allSlots = Array.from({ length: totalSlots }, (_, i) => i + 1);
@@ -96,6 +105,11 @@ export default function SquadRegisterModal({
       return;
     }
 
+    if (alreadyRegistered) {
+      setError(`You are already registered for this match in Slot #${mySlotNumber || '1'}. One player account cannot register twice in the same match.`);
+      return;
+    }
+
     if (!selectedSlot) {
       setError('Please select an available slot.');
       return;
@@ -115,6 +129,13 @@ export default function SquadRegisterModal({
         setError(`Please enter In-Game ID (UID) for Player #${i + 1}`);
         return;
       }
+    }
+
+    // Check for duplicate UIDs within squad
+    const uids = players.slice(0, requiredPlayers).map(p => p.inGameId.trim());
+    if (new Set(uids).size !== uids.length) {
+      setError('Duplicate Free Fire / BGMI In-Game IDs entered. Each player in your squad must have a unique UID.');
+      return;
     }
 
     if (!hasEnoughBalance) {
@@ -218,6 +239,22 @@ export default function SquadRegisterModal({
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
                 <span>This match is 100% full! An automated fresh match has been added to the lobby.</span>
+              </div>
+            )}
+
+            {/* Already Registered Notification */}
+            {alreadyRegistered && (
+              <div className="p-3.5 bg-emerald-950/50 border border-emerald-500/60 text-emerald-200 rounded-xl text-xs font-semibold flex items-start space-x-2.5">
+                <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <div>
+                  <div className="font-bold text-white text-xs">You are already registered for this match!</div>
+                  <div className="text-[11px] text-zinc-300 mt-0.5">
+                    Your team is locked in <strong>Slot #{mySlotNumber || '1'}</strong>. Multiple registrations in the same match are not allowed. Please check "My Matches" to view your credentials.
+                  </div>
+                </div>
               </div>
             )}
 
@@ -402,10 +439,12 @@ export default function SquadRegisterModal({
 
             <button
               type="submit"
-              disabled={submitting || !hasEnoughBalance || isMatchFull || !selectedSlot}
+              disabled={submitting || !hasEnoughBalance || isMatchFull || !selectedSlot || alreadyRegistered}
               className="w-full py-3 bg-silver-gradient hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {submitting
+              {alreadyRegistered
+                ? `Already Registered (Slot #${mySlotNumber || '1'})`
+                : submitting
                 ? 'Registering...'
                 : isMatchFull
                 ? 'Match is 100% Full'

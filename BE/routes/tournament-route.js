@@ -23,7 +23,7 @@ const optionalAuth = (req, res, next) => {
 module.exports = (app) => {
   const router = require("express").Router();
 
-  router.get("/", getTournaments);
+  router.get("/", optionalAuth, getTournaments);
   router.get("/my-matches", verifyToken, getMyMatches);
   router.get("/:id", optionalAuth, getTournamentById);
   router.post("/:id/join", verifyToken, joinTournament);

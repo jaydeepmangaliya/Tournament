@@ -13,11 +13,13 @@ async function getUserIdFromReq(userPayload) {
 }
 
 // 1. Get all tournaments with filter options
-tournamentService.getTournaments = async (filters = {}) => {
+tournamentService.getTournaments = async (filters = {}, userId = null) => {
   try {
     const { gameSlug, matchType, format, status, includeFull } = filters;
     const targetStatus = status || 'open';
     const hideFull = includeFull !== true && includeFull !== 'true';
+
+    const uid = userId ? parseInt(userId, 10) : 0;
 
     let query = `
       SELECT
@@ -26,14 +28,16 @@ tournamentService.getTournaments = async (filters = {}) => {
         g.slug as game_slug,
         COUNT(DISTINCT tt.id) as filled_teams,
         COUNT(DISTINCT tp.id) as filled_players,
-        GROUP_CONCAT(DISTINCT tt.slot_number) as booked_slots_str
+        GROUP_CONCAT(DISTINCT tt.slot_number) as booked_slots_str,
+        MAX(CASE WHEN (tp.user_id = ? AND ? > 0) OR (tt.leader_user_id = ? AND ? > 0) THEN 1 ELSE 0 END) as is_my_registration,
+        MAX(CASE WHEN (tp.user_id = ? AND ? > 0) OR (tt.leader_user_id = ? AND ? > 0) THEN tt.slot_number ELSE NULL END) as my_slot_number
       FROM tournaments t
       JOIN games g ON g.id = t.game_id
       LEFT JOIN tournament_teams tt ON tt.tournament_id = t.id
       LEFT JOIN tournament_participants tp ON tp.tournament_id = t.id
       WHERE 1=1
     `;
-    const params = [];
+    const params = [uid, uid, uid, uid, uid, uid, uid, uid];
 
     if (gameSlug) {
       query += ` AND g.slug = ?`;
@@ -85,6 +89,8 @@ tournamentService.getTournaments = async (filters = {}) => {
         filled_players: parseInt(t.filled_players || 0),
         is_full: isFull,
         booked_slots: bookedSlots,
+        is_registered: Boolean(t.is_my_registration),
+        my_slot_number: t.my_slot_number ? parseInt(t.my_slot_number, 10) : null,
       };
     });
 
@@ -147,7 +153,9 @@ tournamentService.getTournamentById = async (tournamentId, userId = null) => {
     // Check if current user is registered
     let userRegistration = null;
     if (userId) {
-      userRegistration = teamsWithRoster.find(team => team.leader_user_id === userId) || null;
+      userRegistration = teamsWithRoster.find(team => 
+        team.leader_user_id === userId || team.players?.some(p => p.user_id === userId)
+      ) || null;
     }
 
     return {
@@ -196,14 +204,20 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
       return { status: false, message: "Tournament is no longer open for registration." };
     }
 
-    // B. Check if already registered
+    // B. Check if user is already registered for this match
     const [existingReg] = await connection.query(
-      `SELECT id FROM tournament_teams WHERE tournament_id = ? AND leader_user_id = ?`,
-      [tournamentId, userId]
+      `SELECT tp.id, tt.slot_number 
+       FROM tournament_participants tp
+       JOIN tournament_teams tt ON tt.id = tp.team_id
+       WHERE tp.tournament_id = ? AND (tp.user_id = ? OR tt.leader_user_id = ?)`,
+      [tournamentId, userId, userId]
     );
     if (existingReg.length > 0) {
       await connection.rollback();
-      return { status: false, message: "You have already registered for this tournament." };
+      return {
+        status: false,
+        message: `You are already registered for this match in Slot #${existingReg[0].slot_number}! One player account cannot register twice in the same match. View your room credentials in 'My Matches'.`
+      };
     }
 
     // C. Check capacity
@@ -256,6 +270,37 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         return {
           status: false,
           message: `Player #${i + 1} must have In-Game Name (IGN) and In-Game ID (UID).`,
+        };
+      }
+    }
+
+    // Validate unique In-Game IDs (Free Fire UID / BGMI UID)
+    const submittedUids = players
+      .slice(0, requiredPlayers)
+      .map(p => (p.inGameId ? String(p.inGameId).trim() : ''))
+      .filter(Boolean);
+
+    // E1. Check for duplicate UIDs within the submitted squad
+    if (new Set(submittedUids).size !== submittedUids.length) {
+      await connection.rollback();
+      return {
+        status: false,
+        message: "Duplicate In-Game IDs (UIDs) detected in your squad. Every player must enter a unique game UID.",
+      };
+    }
+
+    // E2. Check if ANY submitted UID is already registered in this match by another player
+    if (submittedUids.length > 0) {
+      const [duplicateUids] = await connection.query(
+        `SELECT in_game_id, player_name FROM tournament_participants 
+         WHERE tournament_id = ? AND in_game_id IN (?)`,
+        [tournamentId, submittedUids]
+      );
+      if (duplicateUids.length > 0) {
+        await connection.rollback();
+        return {
+          status: false,
+          message: `Free Fire ID "${duplicateUids[0].in_game_id}" is already registered in this match! Game IDs must be unique per match.`,
         };
       }
     }

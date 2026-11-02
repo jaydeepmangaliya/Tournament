@@ -220,9 +220,18 @@ export default function TournamentsPage() {
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                           {t.game_name}
                         </span>
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white text-black">
-                          {t.format.toUpperCase()} {isBR ? '• BR 48' : '• Clash'}
-                        </span>
+                        {t.is_registered ? (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1">
+                            <svg className="w-2.5 h-2.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span>SLOT #{t.my_slot_number || '1'} BOOKED</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white text-black">
+                            {t.format.toUpperCase()} {isBR ? '• BR 48' : '• Clash'}
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="text-lg font-bold text-white leading-snug">{t.title}</h3>
@@ -275,12 +284,24 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleJoinClick(t)}
-                        className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition bg-silver-gradient hover:brightness-110 text-black shadow-md cursor-pointer flex items-center justify-center space-x-1"
-                      >
-                        <span>{`Register ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}</span>
-                      </button>
+                      {t.is_registered ? (
+                        <button
+                          onClick={() => navigate('/yourmatches')}
+                          className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-md cursor-pointer flex items-center justify-center space-x-1.5"
+                        >
+                          <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>ALREADY JOINED • VIEW IN MY MATCHES</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleJoinClick(t)}
+                          className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition bg-silver-gradient hover:brightness-110 text-black shadow-md cursor-pointer flex items-center justify-center space-x-1"
+                        >
+                          <span>{`Register ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}</span>
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );

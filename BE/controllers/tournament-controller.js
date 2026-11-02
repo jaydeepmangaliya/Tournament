@@ -12,7 +12,8 @@ async function resolveUserId(req) {
 
 exports.getTournaments = async (req, res) => {
   try {
-    const result = await tournamentService.getTournaments(req.query);
+    const userId = await resolveUserId(req);
+    const result = await tournamentService.getTournaments(req.query, userId);
     return res.json(result);
   } catch (error) {
     return res.status(500).json({ status: false, message: error.message });
