@@ -1,5 +1,18 @@
 const tournamentService = require("../services/tournament-service");
+const adminService = require("../services/admin-service");
 
+// 1. Analytics & Overview
+exports.getAnalytics = async (req, res) => {
+  try {
+    const result = await adminService.getAnalytics();
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin getAnalytics error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+// 2. Tournaments & Room Credentials
 exports.getTournaments = async (req, res) => {
   try {
     const result = await tournamentService.getAdminTournaments();
@@ -49,3 +62,77 @@ exports.createTournament = async (req, res) => {
   }
 };
 
+// 3. Match Results & Instant Prize Payouts
+exports.declareMatchResults = async (req, res) => {
+  try {
+    const result = await adminService.declareMatchResults(req.params.id, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin declareMatchResults error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+// 4. UPI Withdrawals Desk
+exports.getWithdrawals = async (req, res) => {
+  try {
+    const result = await adminService.getWithdrawals(req.query.status);
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin getWithdrawals error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.approveWithdrawal = async (req, res) => {
+  try {
+    const result = await adminService.approveWithdrawal(req.params.id, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin approveWithdrawal error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.rejectWithdrawal = async (req, res) => {
+  try {
+    const result = await adminService.rejectWithdrawal(req.params.id, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin rejectWithdrawal error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+// 5. Users & Anti-Cheat
+exports.getUsers = async (req, res) => {
+  try {
+    const result = await adminService.getUsers(req.query.search, req.query.role);
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin getUsers error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+exports.toggleUserBan = async (req, res) => {
+  try {
+    const result = await adminService.toggleUserBan(req.params.id, req.body.status);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin toggleUserBan error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
