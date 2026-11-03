@@ -221,6 +221,16 @@ CREATE TABLE `withdrawals` (
 -- Seed: Default Games
 INSERT INTO `games` (`id`, `name`, `slug`, `image_url`, `is_active`) VALUES
 (1, 'Free Fire', 'free-fire', '', 1),
-(2, 'PUBG Mobile', 'pubg-mobile', '', 1);
+(2, 'PUBG Mobile', 'pubg-mobile', '', 1)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
+
+-- Seed: Admin User & Wallet (Password: 733N733N)
+INSERT INTO `users` (`id`, `name`, `email`, `phone`, `password`, `role`, `status`, `is_18_plus`) VALUES
+(1, 'Admin JP', 'admin.jp@gmail.com', '9999999999', '$2b$10$IHckJZwc4gKeVEFOrE4g5OPvG3LzxEyAFI2xie1jQBjx9o0MS0Fwu', 'admin', 'active', 1)
+ON DUPLICATE KEY UPDATE `role`='admin', `password`='$2b$10$IHckJZwc4gKeVEFOrE4g5OPvG3LzxEyAFI2xie1jQBjx9o0MS0Fwu';
+
+INSERT INTO `wallets` (`id`, `user_id`, `deposit_balance`, `winning_balance`, `referral_balance`) VALUES
+(1, 1, 0.00, 0.00, 0.00)
+ON DUPLICATE KEY UPDATE `user_id`=1;
 
 SET FOREIGN_KEY_CHECKS = 1;
