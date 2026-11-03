@@ -311,6 +311,36 @@ export default function AdminDashboard() {
     }
   };
 
+  // Cancel tournament and immediately refund players into their WITHDRAWABLE balance
+  const handleCancelTournament = async (t) => {
+    const teamsCount = t.teams?.length || t.filled_teams || 0;
+    const totalRefund = (teamsCount * parseFloat(t.entry_fee || 0)).toFixed(2);
+    const confirmCancel = window.confirm(
+      `CANCEL MATCH #${t.id} ("${t.title}")?\n\n` +
+      `• Registered Teams/Players: ${teamsCount} / ${t.total_teams}\n` +
+      `• Total Refund Amount: ₹${totalRefund}\n\n` +
+      `100% of the entry fee will be immediately refunded into each player's WITHDRAWABLE Wallet Balance (allowing them to withdraw to UPI or register for another match).\n\n` +
+      `Do you want to proceed with cancelling this match?`
+    );
+    if (!confirmCancel) return;
+
+    try {
+      const headers = { Authorization: `Bearer ${adminToken}` };
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${t.id}/cancel`,
+        { reason: 'Cancelled by Admin due to unfilled slots / referee decision' },
+        { headers }
+      );
+      if (res.data.status) {
+        setMessage(res.data.message || `Match #${t.id} cancelled and players refunded to withdrawable balance.`);
+        setTimeout(() => setMessage(''), 5500);
+        loadAllAdminData();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to cancel tournament.');
+    }
+  };
+
   // Delete entire tournament lobby
   const handleDeleteTournament = async (t) => {
     const confirmDelete = window.confirm(
@@ -819,7 +849,7 @@ export default function AdminDashboard() {
     (t) => t.status === 'open' && t.filled_teams < t.total_teams
   );
   const liveMatches = tournaments.filter((t) => t.status === 'ongoing');
-  const completedMatches = tournaments.filter((t) => t.status === 'completed');
+  const completedMatches = tournaments.filter((t) => t.status === 'completed' || t.status === 'cancelled');
 
   const filteredWithdrawals = withdrawals.filter((w) => {
     if (withdrawalFilter === 'all') return true;
@@ -1380,20 +1410,27 @@ export default function AdminDashboard() {
                           <button
                             onClick={() => handleStartMatch(t.id)}
                             disabled={submittingCredId === t.id}
-                            className="flex-1 py-2 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-lg transition hover:brightness-110 shadow-md disabled:opacity-50"
+                            className="flex-1 py-2 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-lg transition hover:brightness-110 shadow-md disabled:opacity-50 cursor-pointer"
                           >
                             {submittingCredId === t.id ? 'Starting...' : 'Share Room ID & Start Match'}
                           </button>
                           <button
                             onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                            className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
+                            className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition cursor-pointer"
                           >
                             {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
                           </button>
                           <button
+                            onClick={() => handleCancelTournament(t)}
+                            title="Cancel match & refund players to withdrawable balance"
+                            className="px-3 py-2 bg-amber-950/70 hover:bg-amber-900 text-amber-300 text-xs font-bold rounded-lg border border-amber-800/80 transition cursor-pointer flex items-center space-x-1"
+                          >
+                            <span>Cancel & Refund</span>
+                          </button>
+                          <button
                             onClick={() => handleDeleteTournament(t)}
                             title="Delete match and refund all players"
-                            className="p-2 bg-red-950/40 hover:bg-red-900 text-red-300 rounded-lg border border-red-800/80 transition"
+                            className="p-2 bg-red-950/40 hover:bg-red-900 text-red-300 rounded-lg border border-red-800/80 transition cursor-pointer"
                           >
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <polyline points="3 6 5 6 21 6" />
@@ -1516,14 +1553,21 @@ export default function AdminDashboard() {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                            className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
+                            className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition cursor-pointer"
                           >
                             {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
                           </button>
                           <button
+                            onClick={() => handleCancelTournament(t)}
+                            title="Cancel match & refund players to withdrawable balance"
+                            className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900 text-amber-300 text-xs font-bold rounded-lg border border-amber-800/80 transition cursor-pointer flex items-center space-x-1"
+                          >
+                            <span>Cancel & Refund</span>
+                          </button>
+                          <button
                             onClick={() => handleDeleteTournament(t)}
                             title="Delete Match"
-                            className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-300 rounded-lg border border-red-800/80 transition"
+                            className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-300 rounded-lg border border-red-800/80 transition cursor-pointer"
                           >
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <polyline points="3 6 5 6 21 6" />
@@ -1622,12 +1666,21 @@ export default function AdminDashboard() {
                         <span>Match Over? Enter Winner & Give Prize</span>
                       </button>
 
-                      <button
-                        onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
-                        className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition"
-                      >
-                        {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setExpandedRosterId(expandedRosterId === t.id ? null : t.id)}
+                          className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-lg border border-zinc-800 transition cursor-pointer"
+                        >
+                          {expandedRosterId === t.id ? 'Hide Players' : `View Participants (${t.teams?.length || 0})`}
+                        </button>
+                        <button
+                          onClick={() => handleCancelTournament(t)}
+                          title="Abort match & refund all players into withdrawable wallet balance"
+                          className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900 text-amber-300 text-xs font-bold rounded-lg border border-amber-800/80 transition cursor-pointer flex items-center space-x-1"
+                        >
+                          <span>Cancel & Refund</span>
+                        </button>
+                      </div>
 
                       {renderParticipantRoster(t)}
                     </div>
@@ -1696,8 +1749,12 @@ export default function AdminDashboard() {
                           <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                             {t.game_name} • {t.format.toUpperCase()}
                           </span>
-                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
-                            COMPLETED
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
+                            t.status === 'cancelled'
+                              ? 'bg-rose-950/80 text-rose-300 border-rose-800'
+                              : 'bg-zinc-900 text-zinc-400 border-zinc-800'
+                          }`}>
+                            {t.status === 'cancelled' ? 'CANCELLED & REFUNDED' : 'COMPLETED'}
                           </span>
                         </div>
 
@@ -1710,8 +1767,22 @@ export default function AdminDashboard() {
                           <span>Pool: ₹{t.prize_pool}</span>
                         </div>
 
-                        {/* PROMINENT WINNERS SHOWCASE */}
-                        {hasWinnerData ? (
+                        {/* CANCELLED MATCH NOTICE */}
+                        {t.status === 'cancelled' ? (
+                          <div className="mt-3 bg-gradient-to-br from-rose-950/40 via-[#14141d] to-[#0c0c10] p-3 rounded-xl border border-rose-500/40 space-y-1.5 text-xs">
+                            <div className="flex items-center space-x-1.5 text-rose-300 font-bold text-[11px] uppercase tracking-wider">
+                              <svg className="w-4 h-4 text-rose-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="15" y1="9" x2="9" y2="15" />
+                                <line x1="9" y1="9" x2="15" y2="15" />
+                              </svg>
+                              <span>Match Cancelled:</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-300 font-medium">
+                              100% of the entry fee was automatically credited back to registered players' Withdrawable Wallet Balances.
+                            </p>
+                          </div>
+                        ) : hasWinnerData ? (
                           <div className="mt-3 bg-gradient-to-br from-amber-950/40 via-[#14141d] to-[#0c0c10] p-3 rounded-xl border border-amber-500/40 space-y-2 text-xs">
                             <div className="flex items-center space-x-1.5 text-amber-300 font-bold text-[11px] uppercase tracking-wider">
                               <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

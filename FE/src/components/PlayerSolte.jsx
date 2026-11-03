@@ -280,9 +280,15 @@ export default function PlayerMatches() {
                     <h3 className="text-base font-bold text-white mt-1.5 leading-snug">{m.title}</h3>
                   </div>
                   <div className="text-right">
-                    <span className="px-2.5 py-1 rounded-lg bg-white text-black text-xs font-black">
-                      Slot #{m.my_slot_number}
-                    </span>
+                    {m.status === 'cancelled' ? (
+                      <span className="px-2.5 py-1 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 text-xs font-black">
+                        CANCELLED
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-lg bg-white text-black text-xs font-black">
+                        Slot #{m.my_slot_number}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -305,63 +311,79 @@ export default function PlayerMatches() {
                   </div>
                 </div>
 
-                {/* Room ID & Password Box */}
-                <div className="bg-[#121218] border border-zinc-700 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 flex items-center space-x-1.5">
-                      <svg className="w-3.5 h-3.5 text-silver" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <circle cx="8" cy="15" r="4" />
-                        <path d="M10.85 12.15L19 4" />
-                        <path d="M18 5l2 2" />
-                        <path d="M15 8l2 2" />
+                {/* Cancelled Notice OR Room ID & Password Box */}
+                {m.status === 'cancelled' ? (
+                  <div className="bg-gradient-to-r from-rose-950/40 via-[#180a0e] to-rose-950/40 border border-rose-500/50 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center space-x-2 text-rose-300 font-black text-xs uppercase tracking-wider">
+                      <svg className="w-4 h-4 text-rose-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="15" y1="9" x2="9" y2="15" />
+                        <line x1="9" y1="9" x2="15" y2="15" />
                       </svg>
-                      <span>Custom Room Credentials</span>
-                    </span>
+                      <span>Match Cancelled by Admin</span>
+                    </div>
+                    <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                      This match was cancelled due to unfilled slots. Your full entry fee of <strong className="text-emerald-400 font-bold">₹{parseFloat(m.entry_fee_paid || m.entry_fee).toFixed(2)}</strong> has been credited to your <strong className="text-white font-bold">Withdrawable Balance</strong>. You can raise a cashout request to your UPI or join another tournament!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-[#121218] border border-zinc-700 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 flex items-center space-x-1.5">
+                        <svg className="w-3.5 h-3.5 text-silver" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="8" cy="15" r="4" />
+                          <path d="M10.85 12.15L19 4" />
+                          <path d="M18 5l2 2" />
+                          <path d="M15 8l2 2" />
+                        </svg>
+                        <span>Custom Room Credentials</span>
+                      </span>
+                      {m.has_room_credentials ? (
+                        <span className="text-[10px] bg-zinc-800 border border-zinc-600 text-white px-2 py-0.5 rounded font-black uppercase">
+                          ROOM READY
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold uppercase">
+                          OPENS 15M BEFORE
+                        </span>
+                      )}
+                    </div>
+
                     {m.has_room_credentials ? (
-                      <span className="text-[10px] bg-zinc-800 border border-zinc-600 text-white px-2 py-0.5 rounded font-black uppercase">
-                        ROOM READY
-                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <div className="bg-[#0a0a0e] p-2.5 rounded-lg border border-zinc-800 flex justify-between items-center">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-zinc-500 block">Room ID</span>
+                            <span className="text-xs font-mono font-bold text-white">{m.room_id}</span>
+                          </div>
+                          <button
+                            onClick={() => copyText(m.room_id, 'id', m.id)}
+                            className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[10px] rounded text-zinc-300 font-bold uppercase tracking-wider cursor-pointer"
+                          >
+                            {copiedId === m.id ? 'COPIED' : 'COPY'}
+                          </button>
+                        </div>
+
+                        <div className="bg-[#0a0a0e] p-2.5 rounded-lg border border-zinc-800 flex justify-between items-center">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-zinc-500 block">Password</span>
+                            <span className="text-xs font-mono font-bold text-white">{m.room_password}</span>
+                          </div>
+                          <button
+                            onClick={() => copyText(m.room_password, 'pass', m.id)}
+                            className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[10px] rounded text-zinc-300 font-bold uppercase tracking-wider cursor-pointer"
+                          >
+                            {copiedPass === m.id ? 'COPIED' : 'COPY'}
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <span className="text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold uppercase">
-                        OPENS 15M BEFORE
-                      </span>
+                      <p className="text-xs text-zinc-400 pt-1">
+                        Room ID and Password will unlock right here 15 minutes before the match start time. Make sure you enter the custom room in your assigned Slot #{m.my_slot_number}!
+                      </p>
                     )}
                   </div>
-
-                  {m.has_room_credentials ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                      <div className="bg-[#0a0a0e] p-2.5 rounded-lg border border-zinc-800 flex justify-between items-center">
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-zinc-500 block">Room ID</span>
-                          <span className="text-xs font-mono font-bold text-white">{m.room_id}</span>
-                        </div>
-                        <button
-                          onClick={() => copyText(m.room_id, 'id', m.id)}
-                          className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[10px] rounded text-zinc-300 font-bold uppercase tracking-wider"
-                        >
-                          {copiedId === m.id ? 'COPIED' : 'COPY'}
-                        </button>
-                      </div>
-
-                      <div className="bg-[#0a0a0e] p-2.5 rounded-lg border border-zinc-800 flex justify-between items-center">
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-zinc-500 block">Password</span>
-                          <span className="text-xs font-mono font-bold text-white">{m.room_password}</span>
-                        </div>
-                        <button
-                          onClick={() => copyText(m.room_password, 'pass', m.id)}
-                          className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[10px] rounded text-zinc-300 font-bold uppercase tracking-wider"
-                        >
-                          {copiedPass === m.id ? 'COPIED' : 'COPY'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-zinc-400 pt-1">
-                      Room ID and Password will unlock right here 15 minutes before the match start time. Make sure you enter the custom room in your assigned Slot #{m.my_slot_number}!
-                    </p>
-                  )}
-                </div>
+                )}
               </motion.div>
             ))}
           </div>

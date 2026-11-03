@@ -49,6 +49,19 @@ exports.updateStatus = async (req, res) => {
   }
 };
 
+exports.cancelTournament = async (req, res) => {
+  try {
+    const result = await tournamentService.cancelTournamentAdmin(req.params.id, req.body?.reason);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin cancelTournament error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
 exports.createTournament = async (req, res) => {
   try {
     const result = await tournamentService.createTournamentAdmin(req.body);

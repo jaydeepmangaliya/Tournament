@@ -44,6 +44,7 @@ module.exports = (app) => {
   router.post("/tournaments/:id/add-team", requireAdmin, adminController.addTeam);
   router.post("/tournaments/:id/room-credentials", requireAdmin, adminController.updateRoomCredentials);
   router.post("/tournaments/:id/status", requireAdmin, adminController.updateStatus);
+  router.post("/tournaments/:id/cancel", requireAdmin, adminController.cancelTournament);
   router.post("/tournaments/:id/results", requireAdmin, adminController.declareMatchResults);
   router.post("/tournaments/create", requireAdmin, adminController.createTournament);
   router.delete("/tournaments/:id", requireAdmin, adminController.deleteTournament);

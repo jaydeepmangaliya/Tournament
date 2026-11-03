@@ -734,6 +734,10 @@ tournamentService.updateTournamentStatus = async (tournamentId, status) => {
       return { status: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` };
     }
 
+    if (status === 'cancelled') {
+      return await tournamentService.cancelTournamentAdmin(tournamentId, 'Status updated to cancelled by Admin');
+    }
+
     await db.promise().query(
       `UPDATE tournaments SET status = ? WHERE id = ?`,
       [status, tournamentId]
@@ -810,7 +814,103 @@ tournamentService.createTournamentAdmin = async (body) => {
   }
 };
 
-// 10. Admin: Delete tournament and refund active participants
+// 9b. Admin: Cancel tournament and immediately refund 100% of entry fees to players' WITHDRAWABLE (winning) balance
+tournamentService.cancelTournamentAdmin = async (tournamentId, reason = 'Cancelled by Admin') => {
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [tRows] = await connection.query(`SELECT * FROM tournaments WHERE id = ? FOR UPDATE`, [tournamentId]);
+    if (tRows.length === 0) {
+      await connection.rollback();
+      return { status: false, message: "Tournament not found." };
+    }
+    const tournament = tRows[0];
+
+    if (tournament.status === 'completed') {
+      await connection.rollback();
+      return { status: false, message: "Cannot cancel a match that is already completed." };
+    }
+
+    if (tournament.status === 'cancelled') {
+      await connection.rollback();
+      return { status: false, message: "This match is already cancelled and refunded." };
+    }
+
+    // Fetch all registered teams
+    const [teams] = await connection.query(
+      `SELECT id, leader_user_id, team_name, entry_fee_paid FROM tournament_teams WHERE tournament_id = ? FOR UPDATE`,
+      [tournamentId]
+    );
+
+    let refundedCount = 0;
+    let totalRefunded = 0;
+
+    for (const team of teams) {
+      const fee = parseFloat(team.entry_fee_paid || 0);
+      if (fee > 0) {
+        // Refund 100% directly into winning_balance so player can raise a withdrawal request immediately to UPI or join another match
+        await connection.query(
+          `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
+          [fee, team.leader_user_id]
+        );
+
+        // Record in ledger with 'refund' type and 'winning' balance type
+        await connection.query(
+          `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+           VALUES (?, 'refund', 'winning', ?, ?, ?, 'completed')`,
+          [
+            team.leader_user_id,
+            fee,
+            `Match Cancelled Refund: ${tournament.title} (Withdrawable Credit)`,
+            tournamentId.toString(),
+          ]
+        );
+
+        refundedCount++;
+        totalRefunded += fee;
+      }
+    }
+
+    // Update status to 'cancelled'
+    await connection.query(
+      `UPDATE tournaments SET status = 'cancelled' WHERE id = ?`,
+      [tournamentId]
+    );
+
+    await connection.commit();
+
+    // Spawn replacement open lobby so players can immediately join the next match
+    try {
+      await tournamentService.ensureOpenLobbyExists(
+        tournament.game_id,
+        tournament.format,
+        tournament.match_type,
+        tournament
+      );
+    } catch (rebirthErr) {
+      console.warn("[AUTO-LOBBY REBIRTH on Cancel] Warning:", rebirthErr.message);
+    }
+
+    return {
+      status: true,
+      message: `Tournament #${tournamentId} cancelled successfully! Refunded ₹${totalRefunded.toFixed(2)} to ${refundedCount} registered team(s) into their withdrawable wallet balance.`,
+      data: {
+        tournamentId,
+        refundedCount,
+        totalRefunded,
+      },
+    };
+  } catch (error) {
+    await connection.rollback();
+    console.error("cancelTournamentAdmin error:", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// 10. Admin: Delete tournament and refund active participants to withdrawable balance
 tournamentService.deleteTournamentAdmin = async (tournamentId) => {
   const connection = await db.promise().getConnection();
   try {
@@ -823,7 +923,7 @@ tournamentService.deleteTournamentAdmin = async (tournamentId) => {
     }
     const tournament = tRows[0];
 
-    // If tournament was not finalized, refund entry fees
+    // If tournament was not finalized, refund entry fees directly to winning (withdrawable) balance
     if (tournament.status !== 'completed' && tournament.status !== 'cancelled') {
       const [teams] = await connection.query(
         `SELECT id, leader_user_id, entry_fee_paid FROM tournament_teams WHERE tournament_id = ?`,
@@ -833,12 +933,12 @@ tournamentService.deleteTournamentAdmin = async (tournamentId) => {
         const fee = parseFloat(team.entry_fee_paid || 0);
         if (fee > 0) {
           await connection.query(
-            `UPDATE wallets SET deposit_balance = deposit_balance + ? WHERE user_id = ?`,
+            `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
             [fee, team.leader_user_id]
           );
           await connection.query(
             `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
-             VALUES (?, 'deposit', 'deposit', ?, ?, ?, 'completed')`,
+             VALUES (?, 'refund', 'winning', ?, ?, ?, 'completed')`,
             [
               team.leader_user_id,
               fee,
@@ -858,7 +958,7 @@ tournamentService.deleteTournamentAdmin = async (tournamentId) => {
     await connection.query(`DELETE FROM tournaments WHERE id = ?`, [tournamentId]);
 
     await connection.commit();
-    return { status: true, message: `Tournament #${tournamentId} deleted and players refunded successfully.` };
+    return { status: true, message: `Tournament #${tournamentId} deleted and players refunded to withdrawable balance.` };
   } catch (error) {
     await connection.rollback();
     console.error("deleteTournamentAdmin error:", error);
@@ -951,6 +1051,10 @@ tournamentService.updateTournamentAdmin = async (tournamentId, body) => {
     const [existing] = await db.promise().query(`SELECT * FROM tournaments WHERE id = ?`, [tournamentId]);
     if (existing.length === 0) {
       return { status: false, message: "Tournament not found." };
+    }
+
+    if (status === 'cancelled' && existing[0].status !== 'cancelled') {
+      return await tournamentService.cancelTournamentAdmin(tournamentId, 'Admin set status to cancelled in edit modal');
     }
 
     await db.promise().query(
