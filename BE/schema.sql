@@ -219,9 +219,9 @@ CREATE TABLE `withdrawals` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Seed: Default Games
-INSERT INTO `games` (`id`, `name`, `slug`, `image_url`, `is_active`) VALUES
-(1, 'Free Fire', 'free-fire', '', 1),
-(2, 'PUBG Mobile', 'pubg-mobile', '', 1)
+INSERT INTO `games` (`id`, `name`, `slug`, `is_active`) VALUES
+(1, 'Free Fire', 'free-fire', 1),
+(2, 'PUBG Mobile', 'pubg-mobile', 1)
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 
 -- Seed: Admin User & Wallet (Password: 733N733N)
