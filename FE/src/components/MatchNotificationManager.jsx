@@ -66,13 +66,13 @@ export default function MatchNotificationManager() {
           const reg = await navigator.serviceWorker.ready;
           reg.showNotification('LocalEsport Notifications Enabled!', {
             body: 'You will receive instant alerts when your tournament room ID & password are ready.',
-            icon: '/vite.svg',
+            icon: '/favicon.svg',
             tag: 'welcome-notification',
           });
         } else {
           new Notification('LocalEsport Notifications Enabled!', {
             body: 'You will receive instant alerts when your tournament room ID & password are ready.',
-            icon: '/vite.svg',
+            icon: '/favicon.svg',
           });
         }
       }
@@ -123,8 +123,8 @@ export default function MatchNotificationManager() {
 
     const options = {
       body,
-      icon: '/vite.svg',
-      badge: '/vite.svg',
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
       tag: `match-room-${match.id}`,
       requireInteraction: true,
       data: { url: '/yourmatches' },
