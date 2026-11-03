@@ -8,7 +8,6 @@ services:
     container_name: localesport_app
     restart: always
     ports:
-      - "80:2000"
       - "2000:2000"
     env_file:
       - ./BE/.env
