@@ -141,19 +141,11 @@ authService.register = async (body) => {
       );
     }
 
-    // Initialize wallet with welcome bonus
+    // Initialize clean wallet with ₹0 balance (no free/welcome bonuses)
     await db.promise().query(
       `INSERT INTO wallets (user_id, deposit_balance, winning_balance, referral_balance)
-       VALUES (?, 50.00, 0.00, 20.00)`,
+       VALUES (?, 0.00, 0.00, 0.00)`,
       [userId]
-    );
-
-    // Record welcome bonus transaction
-    await db.promise().query(
-      `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, status)
-       VALUES (?, 'deposit', 'deposit', 50.00, 'Welcome Deposit Bonus', 'completed'),
-              (?, 'referral_bonus', 'referral', 20.00, 'Signup Referral Bonus', 'completed')`,
-      [userId, userId]
     );
 
     const token = await generateJWT({ id: userId, email, role: userRole });
@@ -209,7 +201,7 @@ authService.login = async (body) => {
     // Ensure wallet exists
     if (user.deposit_balance === null) {
       await db.promise().query(
-        `INSERT IGNORE INTO wallets (user_id, deposit_balance, winning_balance, referral_balance) VALUES (?, 50.00, 0.00, 20.00)`,
+        `INSERT IGNORE INTO wallets (user_id, deposit_balance, winning_balance, referral_balance) VALUES (?, 0.00, 0.00, 0.00)`,
         [user.id]
       );
     }
