@@ -164,30 +164,6 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     }
   };
 
-  // Instant test top-up for fast dev/demo testing
-  const handleTestAddFunds = async () => {
-    const amt = parseFloat(addAmount) || 100;
-    setActionLoading(true);
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/wallet/add-funds`,
-        { amount: amt },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.data.status) {
-        showToast(`₹${amt} credited instantly (Dev Test Mode)`, 'success', 'Funds Added');
-        await fetchWallet();
-        setTimeout(() => setActiveTab('balances'), 1000);
-      } else {
-        showToast(res.data.message || 'Failed to add test funds', 'error');
-      }
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to add funds', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleWithdraw = async (e) => {
     e.preventDefault();
     const amt = parseFloat(withdrawAmount);
@@ -439,15 +415,11 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
                       <span>{actionLoading ? 'Connecting to Razorpay...' : `Pay ₹${addAmount || 0} via UPI / Card (Razorpay)`}</span>
                     </button>
 
-                    <div className="pt-1 text-center">
-                      <button
-                        type="button"
-                        onClick={handleTestAddFunds}
-                        disabled={actionLoading}
-                        className="text-[11px] text-zinc-500 hover:text-zinc-300 underline font-medium transition cursor-pointer"
-                      >
-                        ⚡ Instant Test Credit (Dev / Sandbox mode)
-                      </button>
+                    <div className="pt-2 flex items-center justify-center space-x-1.5 text-[10px] text-zinc-500 font-medium">
+                      <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      </svg>
+                      <span>256-Bit Encrypted Payment • Direct UPI & Card Verification</span>
                     </div>
                   </form>
                 )}

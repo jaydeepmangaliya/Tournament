@@ -6,17 +6,14 @@ module.exports = app => {
     // Create Razorpay Order (with authentication)
     router.post("/payment/create-order", paymentController.authenticateToken, paymentController.createOrder);
 
-    // Verify Payment (with authentication)
+    // Verify Payment and credit wallet (with authentication)
     router.post("/payment/verify", paymentController.authenticateToken, paymentController.verifyPayment);
 
-    // Direct Tournament Checkout: Verify Payment and Book Slot immediately
+    // Direct Tournament Checkout: Verify Payment and Book Slot immediately (with authentication)
     router.post("/payment/verify-and-join", paymentController.authenticateToken, paymentController.verifyAndJoinTournament);
 
     // Get Payment Status (with authentication)
     router.get("/payment/status/:paymentId", paymentController.authenticateToken, paymentController.getPaymentStatus);
-
-    // Legacy route (keeping for backward compatibility)
-    router.get("/start-payment", paymentController.createOrder);
 
     app.use('/api', router);
 };

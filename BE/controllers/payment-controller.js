@@ -7,12 +7,13 @@ const authenticateToken = (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
+        return res.status(401).json({ status: false, error: 'Access token required' });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    const secret = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+    jwt.verify(token, secret, (err, user) => {
         if (err) {
-            return res.status(403).json({ error: 'Invalid or expired token' });
+            return res.status(403).json({ status: false, error: 'Invalid or expired token' });
         }
         req.user = user;
         next();
