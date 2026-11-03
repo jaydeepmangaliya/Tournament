@@ -220,94 +220,176 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
       };
     }
 
-    // C. Check capacity
-    const [bookedSlots] = await connection.query(
-      `SELECT slot_number FROM tournament_teams WHERE tournament_id = ?`,
-      [tournamentId]
-    );
+    // C. Handle Join Mode: Random Squad (Auto-Match / Solo Fill) vs Full Squad
+    const joinMode = (body.joinMode === 'random' && tournament.players_per_team > 1) ? 'random' : 'squad';
+    const requiredPlayers = tournament.players_per_team;
 
-    if (bookedSlots.length >= tournament.total_teams) {
-      await connection.rollback();
-      return { status: false, message: "Tournament is already completely full." };
-    }
-
-    // D. Validate slot number
-    const takenSlots = new Set(bookedSlots.map(b => b.slot_number));
     let chosenSlot = slotNumber ? parseInt(slotNumber) : null;
+    let targetTeamId = null;
+    let targetSlotPosition = 1;
+    let effectiveTeamName = '';
+    let entryFee = 0;
 
-    if (chosenSlot) {
-      if (chosenSlot < 1 || chosenSlot > tournament.total_teams) {
-        await connection.rollback();
-        return { status: false, message: `Slot number must be between 1 and ${tournament.total_teams}.` };
-      }
-      if (takenSlots.has(chosenSlot)) {
-        await connection.rollback();
-        return { status: false, message: `Slot #${chosenSlot} is already taken. Please choose another slot.` };
-      }
-    } else {
-      // Auto-assign first free slot
-      for (let i = 1; i <= tournament.total_teams; i++) {
-        if (!takenSlots.has(i)) {
-          chosenSlot = i;
-          break;
-        }
-      }
-    }
+    if (joinMode === 'random') {
+      // 1-Player Fee calculation (e.g. ₹25 for 4v4 ₹100 entry fee)
+      entryFee = parseFloat((parseFloat(tournament.entry_fee) / requiredPlayers).toFixed(2));
 
-    // E. Validate player count matching format
-    const requiredPlayers = tournament.players_per_team; // 1 for 1v1/solo, 2 for 2v2/duo, 4 for 4v4/squad
-    if (!players || players.length < requiredPlayers) {
-      await connection.rollback();
-      return {
-        status: false,
-        message: `This tournament requires ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} details (${tournament.format}).`,
-      };
-    }
-
-    for (let i = 0; i < requiredPlayers; i++) {
-      if (!players[i].inGameName || !players[i].inGameId) {
+      // Player roster only requires Player #1
+      if (!players || !players[0] || !players[0].inGameName || !players[0].inGameId) {
         await connection.rollback();
         return {
           status: false,
-          message: `Player #${i + 1} must have In-Game Name (IGN) and In-Game ID (UID).`,
+          message: "Please enter your In-Game Name (IGN) and In-Game ID (UID) to join.",
         };
       }
-    }
 
-    // Validate unique In-Game IDs (Free Fire UID / BGMI UID)
-    const submittedUids = players
-      .slice(0, requiredPlayers)
-      .map(p => (p.inGameId ? String(p.inGameId).trim() : ''))
-      .filter(Boolean);
+      const submittedUid = String(players[0].inGameId).trim();
 
-    // E1. Check for duplicate UIDs within the submitted squad
-    if (new Set(submittedUids).size !== submittedUids.length) {
-      await connection.rollback();
-      return {
-        status: false,
-        message: "Duplicate In-Game IDs (UIDs) detected in your squad. Every player must enter a unique game UID.",
-      };
-    }
-
-    // E2. Check if ANY submitted UID is already registered in this match by another player
-    if (submittedUids.length > 0) {
+      // Check if this UID is already registered in this match
       const [duplicateUids] = await connection.query(
         `SELECT in_game_id, player_name FROM tournament_participants 
-         WHERE tournament_id = ? AND in_game_id IN (?)`,
-        [tournamentId, submittedUids]
+         WHERE tournament_id = ? AND in_game_id = ?`,
+        [tournamentId, submittedUid]
       );
       if (duplicateUids.length > 0) {
         await connection.rollback();
         return {
           status: false,
-          message: `Free Fire ID "${duplicateUids[0].in_game_id}" is already registered in this match! Game IDs must be unique per match.`,
+          message: `Free Fire ID "${submittedUid}" is already registered in this match! Game IDs must be unique per match.`,
         };
       }
+
+      // Check if there is an existing incomplete random squad in this tournament
+      const [incompleteRandomTeams] = await connection.query(
+        `SELECT tt.id, tt.slot_number, tt.team_name, COUNT(tp.id) as current_players
+         FROM tournament_teams tt
+         JOIN tournament_participants tp ON tp.team_id = tt.id
+         WHERE tt.tournament_id = ? AND tt.is_random_squad = 1
+         GROUP BY tt.id
+         HAVING current_players < ?
+         ORDER BY tt.slot_number ASC
+         LIMIT 1`,
+        [tournamentId, requiredPlayers]
+      );
+
+      if (incompleteRandomTeams.length > 0) {
+        // Join existing incomplete random squad
+        const matchedTeam = incompleteRandomTeams[0];
+        targetTeamId = matchedTeam.id;
+        chosenSlot = matchedTeam.slot_number;
+        targetSlotPosition = matchedTeam.current_players + 1;
+        effectiveTeamName = matchedTeam.team_name;
+      } else {
+        // Need to start a new random squad in an open slot
+        const [bookedSlots] = await connection.query(
+          `SELECT slot_number FROM tournament_teams WHERE tournament_id = ?`,
+          [tournamentId]
+        );
+        const takenSlots = new Set(bookedSlots.map(b => b.slot_number));
+
+        if (takenSlots.size >= tournament.total_teams) {
+          await connection.rollback();
+          return { status: false, message: "Tournament is already completely full." };
+        }
+
+        // Auto-assign first free slot if not specified or taken
+        if (!chosenSlot || takenSlots.has(chosenSlot)) {
+          for (let i = 1; i <= tournament.total_teams; i++) {
+            if (!takenSlots.has(i)) {
+              chosenSlot = i;
+              break;
+            }
+          }
+        }
+
+        effectiveTeamName = `Auto-Match Squad #${chosenSlot}`;
+      }
+    } else {
+      // FULL SQUAD MODE (Captain registers entire team)
+      entryFee = parseFloat(tournament.entry_fee);
+
+      // Check capacity
+      const [bookedSlots] = await connection.query(
+        `SELECT slot_number FROM tournament_teams WHERE tournament_id = ?`,
+        [tournamentId]
+      );
+      const takenSlots = new Set(bookedSlots.map(b => b.slot_number));
+
+      if (takenSlots.size >= tournament.total_teams) {
+        await connection.rollback();
+        return { status: false, message: "Tournament is already completely full." };
+      }
+
+      if (chosenSlot) {
+        if (chosenSlot < 1 || chosenSlot > tournament.total_teams) {
+          await connection.rollback();
+          return { status: false, message: `Slot number must be between 1 and ${tournament.total_teams}.` };
+        }
+        if (takenSlots.has(chosenSlot)) {
+          await connection.rollback();
+          return { status: false, message: `Slot #${chosenSlot} is already taken. Please choose another slot.` };
+        }
+      } else {
+        for (let i = 1; i <= tournament.total_teams; i++) {
+          if (!takenSlots.has(i)) {
+            chosenSlot = i;
+            break;
+          }
+        }
+      }
+
+      if (!players || players.length < requiredPlayers) {
+        await connection.rollback();
+        return {
+          status: false,
+          message: `Full squad requires all ${requiredPlayers} players' details (${tournament.format}).`,
+        };
+      }
+
+      for (let i = 0; i < requiredPlayers; i++) {
+        if (!players[i].inGameName || !players[i].inGameId) {
+          await connection.rollback();
+          return {
+            status: false,
+            message: `Player #${i + 1} must have In-Game Name (IGN) and In-Game ID (UID).`,
+          };
+        }
+      }
+
+      const submittedUids = players
+        .slice(0, requiredPlayers)
+        .map(p => (p.inGameId ? String(p.inGameId).trim() : ''))
+        .filter(Boolean);
+
+      if (new Set(submittedUids).size !== submittedUids.length) {
+        await connection.rollback();
+        return {
+          status: false,
+          message: "Duplicate In-Game IDs (UIDs) detected in your squad. Every player must enter a unique game UID.",
+        };
+      }
+
+      if (submittedUids.length > 0) {
+        const [duplicateUids] = await connection.query(
+          `SELECT in_game_id, player_name FROM tournament_participants 
+           WHERE tournament_id = ? AND in_game_id IN (?)`,
+          [tournamentId, submittedUids]
+        );
+        if (duplicateUids.length > 0) {
+          await connection.rollback();
+          return {
+            status: false,
+            message: `Free Fire ID "${duplicateUids[0].in_game_id}" is already registered in this match! Game IDs must be unique per match.`,
+          };
+        }
+      }
+
+      effectiveTeamName = teamName && teamName.trim() !== ''
+        ? teamName.trim()
+        : `Team Slot #${chosenSlot} (${players[0].inGameName})`;
     }
 
     // F. Handle Payment (Direct Online via Razorpay OR Wallet Balance)
-    const entryFee = parseFloat(tournament.entry_fee);
-
     if (body.paymentMethod === 'razorpay') {
       // Direct Razorpay payment: no wallet deduction needed
       await connection.query(
@@ -316,7 +398,7 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         [
           userId,
           entryFee,
-          `Direct Online Entry Fee (UPI/Razorpay) for ${tournament.title} (Slot #${chosenSlot})`,
+          `Direct Online Entry Fee (UPI/Razorpay) for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`,
           body.razorpayPaymentId || `direct_${Date.now()}`
         ]
       );
@@ -341,7 +423,7 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         await connection.rollback();
         return {
           status: false,
-          message: `Insufficient wallet balance. Entry fee is ₹${entryFee}, but your balance is ₹${totalAvail.toFixed(2)}. Use direct UPI checkout to join immediately.`,
+          message: `Insufficient wallet balance. Entry fee is ₹${entryFee.toFixed(2)}, but your balance is ₹${totalAvail.toFixed(2)}. Use direct UPI checkout to join immediately.`,
         };
       }
 
@@ -369,25 +451,29 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
       await connection.query(
         `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
          VALUES (?, 'entry_fee', 'mixed', ?, ?, ?, 'completed')`,
-        [userId, entryFee, `Entry Fee for ${tournament.title} (Slot #${chosenSlot})`, tournamentId.toString()]
+        [userId, entryFee, `Entry Fee for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`, tournamentId.toString()]
       );
     }
 
-    // G. Create Tournament Team (Slot booking)
-    const effectiveTeamName = teamName && teamName.trim() !== ''
-      ? teamName.trim()
-      : `Team Slot #${chosenSlot} (${players[0].inGameName})`;
+    // G. Create or Update Tournament Team & Participant Roster
+    let teamId = targetTeamId;
 
-    const [teamResult] = await connection.query(
-      `INSERT INTO tournament_teams (tournament_id, slot_number, team_name, leader_user_id, entry_fee_paid)
-       VALUES (?, ?, ?, ?, ?)`,
-      [tournamentId, chosenSlot, effectiveTeamName, userId, entryFee]
-    );
-    const teamId = teamResult.insertId;
+    if (joinMode === 'random') {
+      if (!teamId) {
+        const [teamResult] = await connection.query(
+          `INSERT INTO tournament_teams (tournament_id, slot_number, team_name, leader_user_id, entry_fee_paid, is_random_squad)
+           VALUES (?, ?, ?, ?, ?, 1)`,
+          [tournamentId, chosenSlot, effectiveTeamName, userId, entryFee]
+        );
+        teamId = teamResult.insertId;
+      } else {
+        await connection.query(
+          `UPDATE tournament_teams SET entry_fee_paid = entry_fee_paid + ? WHERE id = ?`,
+          [entryFee, teamId]
+        );
+      }
 
-    // H. Insert Participants Roster
-    for (let i = 0; i < requiredPlayers; i++) {
-      const p = players[i];
+      const p = players[0];
       await connection.query(
         `INSERT INTO tournament_participants (
           tournament_id, team_id, user_id, player_name, in_game_name, in_game_id, phone, is_leader, slot_position
@@ -395,26 +481,59 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         [
           tournamentId,
           teamId,
-          i === 0 ? userId : null,
+          userId,
           p.playerName || p.inGameName,
           p.inGameName,
           p.inGameId,
           p.phone || null,
-          i === 0 ? 1 : 0,
-          i + 1,
+          targetSlotPosition === 1 ? 1 : 0,
+          targetSlotPosition,
         ]
       );
+    } else {
+      // Full Squad Mode
+      const [teamResult] = await connection.query(
+        `INSERT INTO tournament_teams (tournament_id, slot_number, team_name, leader_user_id, entry_fee_paid, is_random_squad)
+         VALUES (?, ?, ?, ?, ?, 0)`,
+        [tournamentId, chosenSlot, effectiveTeamName, userId, entryFee]
+      );
+      teamId = teamResult.insertId;
+
+      for (let i = 0; i < requiredPlayers; i++) {
+        const p = players[i];
+        await connection.query(
+          `INSERT INTO tournament_participants (
+            tournament_id, team_id, user_id, player_name, in_game_name, in_game_id, phone, is_leader, slot_position
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            tournamentId,
+            teamId,
+            i === 0 ? userId : null,
+            p.playerName || p.inGameName,
+            p.inGameName,
+            p.inGameId,
+            p.phone || null,
+            i === 0 ? 1 : 0,
+            i + 1,
+          ]
+        );
+      }
     }
 
-    // I. Check if tournament is now full
-    if (bookedSlots.length + 1 >= tournament.total_teams) {
-      // Mark filled match as 'ready' (Full - waiting for admin to host & enter room credentials)
+    // Check if tournament is completely full
+    const [pCountRows] = await connection.query(
+      `SELECT COUNT(*) as total_participants FROM tournament_participants WHERE tournament_id = ?`,
+      [tournamentId]
+    );
+    const totalParticipants = pCountRows[0]?.total_participants || 0;
+    const maxCapacity = tournament.total_teams * requiredPlayers;
+
+    if (totalParticipants >= maxCapacity) {
       await connection.query(
         `UPDATE tournaments SET status = 'ready' WHERE id = ?`,
         [tournamentId]
       );
 
-      // AUTOMATED TOURNAMENT SPAWN: Create fresh next match for this game & format if none open
       await tournamentService.ensureOpenLobbyExists(
         tournament.game_id,
         tournament.format,
@@ -500,14 +619,19 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
 
     await connection.commit();
 
+    const successMsg = joinMode === 'random'
+      ? `Auto-matched into Slot #${chosenSlot} (${effectiveTeamName})! Seat #${targetSlotPosition} confirmed (Paid ₹${entryFee.toFixed(2)}).`
+      : `Successfully registered for ${tournament.title}! Assigned Slot #${chosenSlot}.`;
+
     return {
       status: true,
-      message: `Successfully registered for ${tournament.title}! Assigned Slot #${chosenSlot}.`,
+      message: successMsg,
       data: {
         tournamentId,
         teamId,
         slotNumber: chosenSlot,
         teamName: effectiveTeamName,
+        joinMode,
         entryFeePaid: entryFee,
       },
     };
@@ -563,21 +687,26 @@ tournamentService.getRoomCredentials = async (tournamentId, userId) => {
 tournamentService.getMyMatches = async (userId) => {
   try {
     const query = `
-      SELECT
+      SELECT DISTINCT
         t.*,
         g.name as game_name,
         g.slug as game_slug,
         tt.slot_number as my_slot_number,
         tt.team_name as my_team_name,
-        tt.entry_fee_paid,
+        tt.is_random_squad,
+        CASE 
+          WHEN tt.is_random_squad = 1 THEN ROUND(t.entry_fee / t.players_per_team, 2)
+          ELSE tt.entry_fee_paid 
+        END as entry_fee_paid,
         tt.created_at as registered_at
-      FROM tournament_teams tt
-      JOIN tournaments t ON t.id = tt.tournament_id
+      FROM tournaments t
       JOIN games g ON g.id = t.game_id
-      WHERE tt.leader_user_id = ?
+      JOIN tournament_teams tt ON tt.tournament_id = t.id
+      LEFT JOIN tournament_participants tp ON tp.team_id = tt.id
+      WHERE tt.leader_user_id = ? OR tp.user_id = ?
       ORDER BY t.match_start_at DESC
     `;
-    const [matches] = await db.promise().query(query, [userId]);
+    const [matches] = await db.promise().query(query, [userId, userId]);
 
     return {
       status: true,
@@ -839,7 +968,7 @@ tournamentService.cancelTournamentAdmin = async (tournamentId, reason = 'Cancell
 
     // Fetch all registered teams
     const [teams] = await connection.query(
-      `SELECT id, leader_user_id, team_name, entry_fee_paid FROM tournament_teams WHERE tournament_id = ? FOR UPDATE`,
+      `SELECT id, leader_user_id, team_name, entry_fee_paid, is_random_squad FROM tournament_teams WHERE tournament_id = ? FOR UPDATE`,
       [tournamentId]
     );
 
@@ -847,28 +976,56 @@ tournamentService.cancelTournamentAdmin = async (tournamentId, reason = 'Cancell
     let totalRefunded = 0;
 
     for (const team of teams) {
-      const fee = parseFloat(team.entry_fee_paid || 0);
-      if (fee > 0) {
-        // Refund 100% directly into winning_balance so player can raise a withdrawal request immediately to UPI or join another match
-        await connection.query(
-          `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
-          [fee, team.leader_user_id]
+      if (team.is_random_squad) {
+        const [members] = await connection.query(
+          `SELECT DISTINCT user_id FROM tournament_participants WHERE team_id = ? AND user_id IS NOT NULL`,
+          [team.id]
         );
+        const memberCount = Math.max(1, members.length);
+        const perPlayerFee = parseFloat((parseFloat(team.entry_fee_paid || 0) / memberCount).toFixed(2));
 
-        // Record in ledger with 'refund' type and 'winning' balance type
-        await connection.query(
-          `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
-           VALUES (?, 'refund', 'winning', ?, ?, ?, 'completed')`,
-          [
-            team.leader_user_id,
-            fee,
-            `Match Cancelled Refund: ${tournament.title} (Withdrawable Credit)`,
-            tournamentId.toString(),
-          ]
-        );
+        for (const m of members) {
+          if (perPlayerFee > 0) {
+            await connection.query(
+              `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
+              [perPlayerFee, m.user_id]
+            );
+            await connection.query(
+              `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+               VALUES (?, 'refund', 'winning', ?, ?, ?, 'completed')`,
+              [
+                m.user_id,
+                perPlayerFee,
+                `Match Cancelled Refund: ${tournament.title} (Withdrawable Credit)`,
+                tournamentId.toString(),
+              ]
+            );
+            refundedCount++;
+            totalRefunded += perPlayerFee;
+          }
+        }
+      } else {
+        const fee = parseFloat(team.entry_fee_paid || 0);
+        if (fee > 0) {
+          await connection.query(
+            `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
+            [fee, team.leader_user_id]
+          );
 
-        refundedCount++;
-        totalRefunded += fee;
+          await connection.query(
+            `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+             VALUES (?, 'refund', 'winning', ?, ?, ?, 'completed')`,
+            [
+              team.leader_user_id,
+              fee,
+              `Match Cancelled Refund: ${tournament.title} (Withdrawable Credit)`,
+              tournamentId.toString(),
+            ]
+          );
+
+          refundedCount++;
+          totalRefunded += fee;
+        }
       }
     }
 

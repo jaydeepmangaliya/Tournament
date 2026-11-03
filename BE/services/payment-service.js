@@ -208,7 +208,8 @@ paymentService.verifyAndJoinTournament = async (req) => {
             amount,
             teamName,
             slotNumber,
-            players = []
+            players = [],
+            joinMode = 'squad'
         } = req.body;
 
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -272,6 +273,7 @@ paymentService.verifyAndJoinTournament = async (req) => {
             teamName,
             slotNumber,
             players,
+            joinMode,
             paymentMethod: 'razorpay',
             razorpayPaymentId: razorpay_payment_id
         });

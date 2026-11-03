@@ -381,7 +381,7 @@ adminService.declareMatchResults = async (tournamentId, body) => {
     }
 
     const [teams] = await connection.query(
-      `SELECT id, slot_number, team_name, leader_user_id FROM tournament_teams WHERE tournament_id = ?`,
+      `SELECT id, slot_number, team_name, leader_user_id, is_random_squad FROM tournament_teams WHERE tournament_id = ?`,
       [tournamentId]
     );
     const teamMap = new Map(teams.map(t => [t.id, t]));
@@ -402,23 +402,49 @@ adminService.declareMatchResults = async (tournamentId, body) => {
           [w.rank, prizeAmount, team.id]
         );
 
-        // Credit team leader's winning balance
-        await connection.query(
-          `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
-          [prizeAmount, team.leader_user_id]
-        );
+        if (team.is_random_squad) {
+          // Auto-Match Random Squad: Divide prize equally among all distinct registered players
+          const [members] = await connection.query(
+            `SELECT DISTINCT user_id FROM tournament_participants WHERE team_id = ? AND user_id IS NOT NULL`,
+            [team.id]
+          );
+          const memberCount = Math.max(1, members.length);
+          const splitPrize = parseFloat((prizeAmount / memberCount).toFixed(2));
 
-        // Record in ledger
-        await connection.query(
-          `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
-           VALUES (?, 'winning', 'winning', ?, ?, ?, 'completed')`,
-          [
-            team.leader_user_id,
-            prizeAmount,
-            `Match #${tournamentId} Rank #${w.rank} Prize (${tournament.title})`,
-            tournamentId.toString(),
-          ]
-        );
+          for (const m of members) {
+            await connection.query(
+              `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
+              [splitPrize, m.user_id]
+            );
+            await connection.query(
+              `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+               VALUES (?, 'winning', 'winning', ?, ?, ?, 'completed')`,
+              [
+                m.user_id,
+                splitPrize,
+                `Match #${tournamentId} Rank #${w.rank} Prize (${tournament.title}) [Random Squad Share: 1/${memberCount}]`,
+                tournamentId.toString(),
+              ]
+            );
+          }
+        } else {
+          // Pre-made Full Squad: Credit 100% to team leader's winning balance
+          await connection.query(
+            `UPDATE wallets SET winning_balance = winning_balance + ? WHERE user_id = ?`,
+            [prizeAmount, team.leader_user_id]
+          );
+
+          await connection.query(
+            `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+             VALUES (?, 'winning', 'winning', ?, ?, ?, 'completed')`,
+            [
+              team.leader_user_id,
+              prizeAmount,
+              `Match #${tournamentId} Rank #${w.rank} Prize (${tournament.title})`,
+              tournamentId.toString(),
+            ]
+          );
+        }
 
         totalPrizesDistributed += prizeAmount;
         summaryWinners.push({
