@@ -227,10 +227,25 @@ export default function Home() {
             <span className="text-silver">Daily Cash Prizepools.</span>
           </h1>
 
-          {/* Subtitle */}
-          <p className="text-xs sm:text-base md:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed drop-shadow-md font-medium px-2">
-            Join custom 1v1 Duels, 2v2 Duos, 4v4 Clash Squads, and 48-Player Battle Royale lobbies. Real-time bracket assignment, automated room security, and instant UPI payouts.
-          </p>
+          {/* Styled Esports Mode & Security Badges (Frosted Glass Backdrop) */}
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 max-w-3xl mx-auto px-2">
+            <span className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#0e0e13]/90 backdrop-blur-md border border-zinc-700/70 text-[11px] sm:text-xs font-bold text-zinc-200 shadow-xl">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
+              <span>1v1 &amp; 2v2 Duels</span>
+            </span>
+            <span className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#0e0e13]/90 backdrop-blur-md border border-zinc-700/70 text-[11px] sm:text-xs font-bold text-zinc-200 shadow-xl">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+              <span>48-Player Battle Royale</span>
+            </span>
+            <span className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#0e0e13]/90 backdrop-blur-md border border-zinc-700/70 text-[11px] sm:text-xs font-bold text-zinc-200 shadow-xl">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]"></span>
+              <span>Automated Room Security</span>
+            </span>
+            <span className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#0e0e13]/90 backdrop-blur-md border border-zinc-700/70 text-[11px] sm:text-xs font-bold text-zinc-200 shadow-xl">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
+              <span>Instant UPI Payouts</span>
+            </span>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2 px-4 sm:px-0">
