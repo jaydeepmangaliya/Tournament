@@ -180,8 +180,12 @@ export default function Leaderboard() {
                   className="order-2 md:order-1 bg-gradient-to-b from-[#14141c] to-[#0c0c10] border border-zinc-700/80 hover:border-zinc-500 rounded-2xl p-5 text-center flex flex-col justify-between shadow-xl transition"
                 >
                   <div>
-                    <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-zinc-400/10 border border-zinc-400/30 text-zinc-300 text-[10px] font-black uppercase tracking-wider mb-3">
-                      🥈 #2 RUNNER UP
+                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-zinc-400/10 border border-zinc-400/30 text-zinc-300 text-[10px] font-black uppercase tracking-wider mb-3">
+                      <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <circle cx="12" cy="8" r="6" />
+                        <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+                      </svg>
+                      <span>#2 RUNNER UP</span>
                     </div>
                     <div className="w-16 h-16 mx-auto rounded-2xl bg-zinc-800 border-2 border-zinc-400 flex items-center justify-center font-mono font-black text-xl text-white shadow-lg mb-3">
                       {top3[1].playerName.charAt(0).toUpperCase()}
@@ -213,7 +217,10 @@ export default function Leaderboard() {
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500" />
                   <div>
                     <div className="inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-3 animate-pulse">
-                      👑 #1 TOURNAMENT CHAMPION
+                      <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14" />
+                      </svg>
+                      <span>#1 TOURNAMENT CHAMPION</span>
                     </div>
                     <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-amber-400/20 to-amber-600/10 border-2 border-amber-400 flex items-center justify-center font-mono font-black text-2xl text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.4)] mb-3">
                       {top3[0].playerName.charAt(0).toUpperCase()}
@@ -244,8 +251,11 @@ export default function Leaderboard() {
                   className="order-3 bg-gradient-to-b from-[#18110c] to-[#0c0806] border border-amber-700/50 hover:border-amber-600 rounded-2xl p-5 text-center flex flex-col justify-between shadow-xl transition"
                 >
                   <div>
-                    <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-amber-700/10 border border-amber-700/30 text-amber-400 text-[10px] font-black uppercase tracking-wider mb-3">
-                      🥉 #3 ELITE FRAGGER
+                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-700/10 border border-amber-700/30 text-amber-400 text-[10px] font-black uppercase tracking-wider mb-3">
+                      <svg className="w-3.5 h-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                      <span>#3 ELITE FRAGGER</span>
                     </div>
                     <div className="w-16 h-16 mx-auto rounded-2xl bg-zinc-800 border-2 border-amber-700 flex items-center justify-center font-mono font-black text-xl text-amber-400 shadow-lg mb-3">
                       {top3[2].playerName.charAt(0).toUpperCase()}

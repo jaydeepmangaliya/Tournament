@@ -1524,7 +1524,7 @@ tournamentService.getLiveTicker = async () => {
       realEvents.push({
         id: `win_${w.created_at}_${w.player_name}_${w.amount}`,
         type: 'winning',
-        text: `⚡ ${w.player_name} won ₹${parseFloat(w.amount).toFixed(2)} in ${matchName}`,
+        text: `${w.player_name} won ₹${parseFloat(w.amount).toFixed(2)} in ${matchName}`,
         timestamp: w.created_at,
       });
     });
@@ -1533,7 +1533,7 @@ tournamentService.getLiveTicker = async () => {
       realEvents.push({
         id: `wd_${wd.created_at}_${wd.player_name}_${wd.amount}`,
         type: 'withdrawal',
-        text: `💸 ${wd.player_name} cashed out ₹${parseFloat(wd.amount).toFixed(2)} via ${(wd.payout_method || 'upi').toUpperCase()}`,
+        text: `${wd.player_name} cashed out ₹${parseFloat(wd.amount).toFixed(2)} via ${(wd.payout_method || 'upi').toUpperCase()}`,
         timestamp: wd.created_at,
       });
     });
@@ -1541,11 +1541,11 @@ tournamentService.getLiveTicker = async () => {
     realEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     const platformHighlights = [
-      { id: 'h1', type: 'info', text: '⚡ LIVE ARENA: Free Fire 1v1 Solo Duel, 2v2 Duo & 4v4 Clash Squads open for registration' },
-      { id: 'h2', type: 'info', text: '🛡️ GUARANTEED CASHOUTS: Instant withdrawals directly to your UPI & Bank account' },
-      { id: 'h3', type: 'info', text: '🔑 FAST CREDENTIALS: Custom Room ID & Password shared 15 minutes before match start' },
-      { id: 'h4', type: 'info', text: '🎲 SOLO AUTO-MATCH: Play 2v2 & 4v4 even without a squad with proportional entry fee' },
-      { id: 'h5', type: 'info', text: '🏆 COMPETITIVE ARENA: Climb the Weekly Leaderboard and claim real cash prizes' },
+      { id: 'h1', type: 'info', category: 'TOURNAMENTS', text: 'Free Fire 1v1 Solo Duel, 2v2 Duo & 4v4 Clash Squads open for registration' },
+      { id: 'h2', type: 'info', category: 'CASHOUTS', text: 'Instant payouts verified directly to UPI & Bank accounts within 4 hours' },
+      { id: 'h3', type: 'info', category: 'ROOM CREDENTIALS', text: 'Custom Room ID & Password dispatched 15 minutes before match start' },
+      { id: 'h4', type: 'info', category: 'SOLO MATCHMAKING', text: 'Play 2v2 & 4v4 even without a squad with proportional entry fee' },
+      { id: 'h5', type: 'info', category: 'LEADERBOARD', text: 'Season 1 podium is live: compete to win the weekly cash prizepool' },
     ];
 
     return {
