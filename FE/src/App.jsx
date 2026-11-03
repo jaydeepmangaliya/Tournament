@@ -22,23 +22,23 @@ const App = () => {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   React.useEffect(() => {
-    document.title = "LocalEsport - Competitive Gaming Platform";
-    const faviconSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-        <rect width="64" height="64" rx="14" fill="#09090b" stroke="#71717a" stroke-width="2"/>
-        <path d="M32 14L46 23V41L32 50L18 41V23L32 14Z" fill="none" stroke="#e4e4e7" stroke-width="2.5" stroke-linejoin="round"/>
-        <path d="M26 32L30 36L38 28" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    `;
-    const faviconUrl = "data:image/svg+xml," + encodeURIComponent(faviconSvg);
-    let favicon = document.querySelector("link[rel~='icon']");
-    if (!favicon) {
-      favicon = document.createElement("link");
-      favicon.rel = "icon";
-      document.head.appendChild(favicon);
-    }
-    favicon.href = faviconUrl;
-  }, []);
+    const titles = {
+      '/': 'LocalEsport - Competitive Gaming Platform',
+      '/tournaments': 'Tournaments | LocalEsport',
+      '/leaderboard': 'Weekly Leaderboard | LocalEsport',
+      '/yourmatches': 'My Matches & Room Access | LocalEsport',
+      '/login': 'Sign In & Register | LocalEsport',
+      '/affiliate': 'Affiliate Partner Portal | LocalEsport',
+      '/refer-and-earn': 'Refer & Earn Cash | LocalEsport',
+      '/admin': 'Organizer Console | LocalEsport',
+      '/admin/login': 'Admin Portal | LocalEsport',
+      '/terms': 'Terms of Service & Rules | LocalEsport',
+      '/fairplay': 'Fair Play & Anti-Cheat | LocalEsport',
+      '/rules': 'Restricted States & Compliance | LocalEsport',
+      '/payment': 'Wallet Deposit | LocalEsport',
+    };
+    document.title = titles[location.pathname] || 'LocalEsport - Competitive Gaming Platform';
+  }, [location.pathname]);
 
   return (
     <div className="bg-[#0a0a0e] min-h-screen text-white">

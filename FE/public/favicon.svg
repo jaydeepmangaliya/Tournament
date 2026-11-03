@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
+  <defs>
+    <linearGradient id="shieldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="40%" stop-color="#ffffff" />
+      <stop offset="70%" stop-color="#cbd5e1" />
+      <stop offset="100%" stop-color="#475569" />
+    </linearGradient>
+    <linearGradient id="shieldBg" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#12141f" />
+      <stop offset="100%" stop-color="#08080d" />
+    </linearGradient>
+    <linearGradient id="monogramL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="50%" stop-color="#e2e8f0" />
+      <stop offset="100%" stop-color="#94a3b8" />
+    </linearGradient>
+    <linearGradient id="lightningBolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#00f5ff" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+  <path d="M18 1.5 L32 6.5 V18 C32 26 25 32.5 18 34.5 C11 32.5 4 26 4 18 V6.5 L18 1.5 Z" fill="url(#shieldBg)" stroke="url(#shieldRim)" stroke-width="1.8" />
+  <path d="M11 11 H15.5 V22 H24 V25.5 H11 V11 Z" fill="url(#monogramL)" opacity="0.9" />
+  <path d="M21 7 L13 18.5 H19 L15 28 L25.5 15.5 H19.5 L23 7 Z" fill="url(#lightningBolt)" />
+</svg>
