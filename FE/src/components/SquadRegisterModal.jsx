@@ -45,6 +45,18 @@ export default function SquadRegisterModal({
   const [alreadyRegistered, setAlreadyRegistered] = useState(Boolean(tournament?.is_registered));
   const [mySlotNumber, setMySlotNumber] = useState(tournament?.my_slot_number || null);
 
+  const entryFee = parseFloat(tournament.entry_fee || 0);
+  const hasEnoughBalance = walletBalance >= entryFee;
+  const isMatchFull = bookedSlots.length >= totalSlots;
+  const [paymentMethod, setPaymentMethod] = useState(() => (hasEnoughBalance ? 'wallet' : 'razorpay'));
+
+  // Update paymentMethod if wallet balance changes
+  useEffect(() => {
+    if (walletBalance >= entryFee && paymentMethod === 'razorpay') {
+      setPaymentMethod('wallet');
+    }
+  }, [walletBalance, entryFee]);
+
   // Fetch real-time live tournament data and booked slots from DB
   useEffect(() => {
     let isMounted = true;
@@ -86,10 +98,6 @@ export default function SquadRegisterModal({
       return updated;
     });
   };
-
-  const entryFee = parseFloat(tournament.entry_fee || 0);
-  const hasEnoughBalance = walletBalance >= entryFee;
-  const isMatchFull = bookedSlots.length >= totalSlots;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -138,40 +146,142 @@ export default function SquadRegisterModal({
       return;
     }
 
-    if (!hasEnoughBalance) {
-      setError(`Insufficient wallet balance. You need ₹${entryFee}, but have ₹${walletBalance.toFixed(2)}. Please add funds.`);
+    const effectiveTeamName = requiredPlayers > 1 
+      ? (teamName || `${players[0].inGameName}'s Squad`) 
+      : players[0].inGameName;
+
+    // PATH 1: PAY VIA WALLET BALANCE
+    if (paymentMethod === 'wallet') {
+      if (!hasEnoughBalance) {
+        setError(`Insufficient wallet balance. You need ₹${entryFee}, but have ₹${walletBalance.toFixed(2)}. Please select Direct UPI Payment below.`);
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        const payload = {
+          teamName: effectiveTeamName,
+          slotNumber: selectedSlot,
+          players,
+        };
+
+        const res = await axios.post(
+          `${import.meta.env.VITE_API_URL}/api/tournaments/${tournament.id}/join`,
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (res.data.status) {
+          alert(res.data.message || 'Registration successful!');
+          if (onRegistrationSuccess) onRegistrationSuccess();
+          onClose();
+        } else {
+          setError(res.data.message || 'Registration failed');
+        }
+      } catch (err) {
+        setError(err.response?.data?.message || 'Registration failed. Try again.');
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
+    // PATH 2: DIRECT ONLINE CHECKOUT (RAZORPAY: UPI, GPAY, PHONEPE, QR, CARDS)
     setSubmitting(true);
     try {
-      const payload = {
-        teamName: requiredPlayers > 1 ? (teamName || `${players[0].inGameName}'s Squad`) : players[0].inGameName,
-        slotNumber: selectedSlot,
-        players,
-      };
-
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/tournaments/${tournament.id}/join`,
-        payload,
+      // 1. Create Razorpay order on backend
+      const orderRes = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/payment/create-order`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
+          amount: entryFee,
+          tournamentId: tournament.id,
+          tournamentName: tournament.title,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data.status) {
-        alert(res.data.message || 'Registration successful!');
-        if (onRegistrationSuccess) onRegistrationSuccess();
-        onClose();
-      } else {
-        setError(res.data.message || 'Registration failed');
+      const orderData = orderRes.data;
+      if (!orderData?.orderId) {
+        throw new Error(orderRes.data?.message || 'Failed to initialize payment gateway.');
       }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Try again.');
-    } finally {
+
+      const rzpKey = orderData.key || 'rzp_test_WyypEVHeheZwJ5';
+
+      // 2. Open official Razorpay Checkout modal
+      const options = {
+        key: rzpKey,
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: 'LocalEsport Arena',
+        description: `Direct Entry for ${tournament.title} (Slot #${selectedSlot})`,
+        order_id: orderData.orderId,
+        prefill: {
+          name: user?.name || players[0].inGameName,
+          email: user?.email || '',
+          contact: players[0].phone || user?.phone || '',
+        },
+        theme: {
+          color: '#06b6d4',
+          backdrop_color: '#09090d',
+        },
+        handler: async function (paymentResponse) {
+          try {
+            setSubmitting(true);
+            // 3. Verify payment signature on backend and automatically book slot!
+            const verifyRes = await axios.post(
+              `${import.meta.env.VITE_API_URL}/api/payment/verify-and-join`,
+              {
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature,
+                tournamentId: tournament.id,
+                amount: entryFee,
+                teamName: effectiveTeamName,
+                slotNumber: selectedSlot,
+                players,
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (verifyRes.data.status) {
+              alert(verifyRes.data.message || `Payment verified! You are registered for Slot #${selectedSlot}!`);
+              if (onRegistrationSuccess) onRegistrationSuccess();
+              onClose();
+            } else {
+              setError(verifyRes.data.message || `Payment was received (ID: ${paymentResponse.razorpay_payment_id}), but slot booking failed. Please contact admin.`);
+            }
+          } catch (vErr) {
+            console.error('Verify error:', vErr);
+            setError(vErr.response?.data?.message || 'Payment verification failed. If money was deducted, contact support.');
+          } finally {
+            setSubmitting(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setSubmitting(false);
+          },
+        },
+      };
+
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK is loading. Please try again in a moment.');
+      }
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (failedResp) {
+        setSubmitting(false);
+        setError(`Payment failed: ${failedResp.error.description || failedResp.error.reason}`);
+      });
+      rzp.open();
+    } catch (payErr) {
+      console.error('Payment checkout error:', payErr);
+      setError(payErr.response?.data?.message || payErr.message || 'Payment failed to initialize.');
       setSubmitting(false);
     }
   };
@@ -415,42 +525,114 @@ export default function SquadRegisterModal({
               ))}
             </div>
 
-            {/* Wallet Check & Submit */}
-            <div className="bg-[#121218] p-3 rounded-xl border border-zinc-800 text-xs flex items-center justify-between">
-              <div>
-                <span className="text-zinc-500 uppercase font-bold text-[10px] block">Your Wallet Balance:</span>
-                <strong className={hasEnoughBalance ? 'text-white text-sm' : 'text-zinc-400 text-sm'}>
-                  ₹{walletBalance.toFixed(2)}
-                </strong>
+            {/* Payment Method Selection: Direct UPI Checkout or Wallet Balance */}
+            <div className="space-y-2.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                Choose Payment Method
+              </label>
+
+              {/* Option A: Direct Online Payment (UPI / QR / Cards) */}
+              <div
+                onClick={() => setPaymentMethod('razorpay')}
+                className={`p-3 rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                  paymentMethod === 'razorpay'
+                    ? 'bg-cyan-950/40 border-cyan-500/80 shadow-md shadow-cyan-950/30'
+                    : 'bg-[#121218] border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    paymentMethod === 'razorpay' ? 'border-cyan-400 bg-cyan-500' : 'border-zinc-600'
+                  }`}>
+                    {paymentMethod === 'razorpay' && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs font-bold text-white">Direct Online Checkout</span>
+                      <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] font-black uppercase">
+                        INSTANT
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">
+                      Pay ₹{entryFee} directly via Google Pay, PhonePe, Paytm UPI, QR, or Card
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                  <span className="text-xs font-black text-white font-mono">₹{entryFee}</span>
+                  <span className="text-[9px] text-zinc-500">No pre-load needed</span>
+                </div>
               </div>
-              {!hasEnoughBalance && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    if (onOpenWallet) onOpenWallet();
-                  }}
-                  className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 rounded-lg font-bold text-xs transition"
-                >
-                  + Add Funds
-                </button>
-              )}
+
+              {/* Option B: Pay from Wallet Balance (If user has earnings or deposit) */}
+              <div
+                onClick={() => {
+                  if (hasEnoughBalance) {
+                    setPaymentMethod('wallet');
+                  }
+                }}
+                className={`p-3 rounded-xl border transition ${
+                  hasEnoughBalance ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'
+                } flex items-center justify-between ${
+                  paymentMethod === 'wallet'
+                    ? 'bg-emerald-950/40 border-emerald-500/80 shadow-md shadow-emerald-950/30'
+                    : 'bg-[#121218] border-zinc-800'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    paymentMethod === 'wallet' ? 'border-emerald-400 bg-emerald-500' : 'border-zinc-600'
+                  }`}>
+                    {paymentMethod === 'wallet' && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs font-bold text-white">Use Wallet Earnings</span>
+                      {hasEnoughBalance ? (
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black uppercase">
+                          READY
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-500 text-[9px] font-bold uppercase">
+                          INSUFFICIENT
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">
+                      Deduct from your tournament prize winnings & earnings
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-mono font-bold text-emerald-400 block">
+                    ₹{walletBalance.toFixed(2)}
+                  </span>
+                  <span className="text-[9px] text-zinc-500">Available</span>
+                </div>
+              </div>
             </div>
 
+            {/* Submit Action Button */}
             <button
               type="submit"
-              disabled={submitting || !hasEnoughBalance || isMatchFull || !selectedSlot || alreadyRegistered}
-              className="w-full py-3 bg-silver-gradient hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={submitting || isMatchFull || !selectedSlot || alreadyRegistered}
+              className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${
+                paymentMethod === 'razorpay'
+                  ? 'bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-500 hover:brightness-110 text-black'
+                  : 'bg-silver-gradient hover:brightness-110 text-black'
+              }`}
             >
               {alreadyRegistered
                 ? `Already Registered (Slot #${mySlotNumber || '1'})`
                 : submitting
-                ? 'Registering...'
+                ? 'Processing Registration...'
                 : isMatchFull
                 ? 'Match is 100% Full'
-                : selectedSlot
-                ? `Lock Slot #${selectedSlot} & Pay ₹${entryFee}`
-                : 'Select an Available Slot'}
+                : !selectedSlot
+                ? 'Select an Available Slot'
+                : paymentMethod === 'razorpay'
+                ? `⚡ Pay ₹${entryFee} via UPI / Card & Join Slot #${selectedSlot}`
+                : `Pay ₹${entryFee} from Wallet & Join Slot #${selectedSlot}`}
             </button>
           </form>
         </motion.div>

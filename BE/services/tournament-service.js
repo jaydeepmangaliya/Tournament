@@ -305,57 +305,73 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
       }
     }
 
-    // F. Validate & Deduct Wallet Balance
+    // F. Handle Payment (Direct Online via Razorpay OR Wallet Balance)
     const entryFee = parseFloat(tournament.entry_fee);
-    const [userWallets] = await connection.query(
-      `SELECT * FROM wallets WHERE user_id = ? FOR UPDATE`,
-      [userId]
-    );
-    if (userWallets.length === 0) {
-      await connection.rollback();
-      return { status: false, message: "Wallet not found. Please re-login." };
+
+    if (body.paymentMethod === 'razorpay') {
+      // Direct Razorpay payment: no wallet deduction needed
+      await connection.query(
+        `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+         VALUES (?, 'entry_fee', 'deposit', ?, ?, ?, 'completed')`,
+        [
+          userId,
+          entryFee,
+          `Direct Online Entry Fee (UPI/Razorpay) for ${tournament.title} (Slot #${chosenSlot})`,
+          body.razorpayPaymentId || `direct_${Date.now()}`
+        ]
+      );
+    } else {
+      // Standard wallet balance deduction
+      const [userWallets] = await connection.query(
+        `SELECT * FROM wallets WHERE user_id = ? FOR UPDATE`,
+        [userId]
+      );
+      if (userWallets.length === 0) {
+        await connection.rollback();
+        return { status: false, message: "Wallet not found. Please re-login." };
+      }
+
+      const wallet = userWallets[0];
+      let depBal = parseFloat(wallet.deposit_balance || 0);
+      let refBal = parseFloat(wallet.referral_balance || 0);
+      let winBal = parseFloat(wallet.winning_balance || 0);
+      const totalAvail = depBal + refBal + winBal;
+
+      if (totalAvail < entryFee) {
+        await connection.rollback();
+        return {
+          status: false,
+          message: `Insufficient wallet balance. Entry fee is ₹${entryFee}, but your balance is ₹${totalAvail.toFixed(2)}. Use direct UPI checkout to join immediately.`,
+        };
+      }
+
+      // Deduction priority: 1. Referral/Bonus balance, 2. Deposit balance, 3. Winning balance
+      let remainingToPay = entryFee;
+      let deductRef = Math.min(refBal, remainingToPay);
+      remainingToPay -= deductRef;
+
+      let deductDep = Math.min(depBal, remainingToPay);
+      remainingToPay -= deductDep;
+
+      let deductWin = Math.min(winBal, remainingToPay);
+      remainingToPay -= deductWin;
+
+      await connection.query(
+        `UPDATE wallets
+         SET deposit_balance = deposit_balance - ?,
+             referral_balance = referral_balance - ?,
+             winning_balance = winning_balance - ?
+         WHERE user_id = ?`,
+        [deductDep, deductRef, deductWin, userId]
+      );
+
+      // Record wallet ledger transaction
+      await connection.query(
+        `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+         VALUES (?, 'entry_fee', 'mixed', ?, ?, ?, 'completed')`,
+        [userId, entryFee, `Entry Fee for ${tournament.title} (Slot #${chosenSlot})`, tournamentId.toString()]
+      );
     }
-
-    const wallet = userWallets[0];
-    let depBal = parseFloat(wallet.deposit_balance || 0);
-    let refBal = parseFloat(wallet.referral_balance || 0);
-    let winBal = parseFloat(wallet.winning_balance || 0);
-    const totalAvail = depBal + refBal + winBal;
-
-    if (totalAvail < entryFee) {
-      await connection.rollback();
-      return {
-        status: false,
-        message: `Insufficient wallet balance. Entry fee is ₹${entryFee}, but your balance is ₹${totalAvail.toFixed(2)}. Please add money to your wallet.`,
-      };
-    }
-
-    // Deduction priority: 1. Referral/Bonus balance, 2. Deposit balance, 3. Winning balance
-    let remainingToPay = entryFee;
-    let deductRef = Math.min(refBal, remainingToPay);
-    remainingToPay -= deductRef;
-
-    let deductDep = Math.min(depBal, remainingToPay);
-    remainingToPay -= deductDep;
-
-    let deductWin = Math.min(winBal, remainingToPay);
-    remainingToPay -= deductWin;
-
-    await connection.query(
-      `UPDATE wallets
-       SET deposit_balance = deposit_balance - ?,
-           referral_balance = referral_balance - ?,
-           winning_balance = winning_balance - ?
-       WHERE user_id = ?`,
-      [deductDep, deductRef, deductWin, userId]
-    );
-
-    // Record wallet ledger transaction
-    await connection.query(
-      `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
-       VALUES (?, 'entry_fee', 'mixed', ?, ?, ?, 'completed')`,
-      [userId, entryFee, `Entry Fee for ${tournament.title} (Slot #${chosenSlot})`, tournamentId.toString()]
-    );
 
     // G. Create Tournament Team (Slot booking)
     const effectiveTeamName = teamName && teamName.trim() !== ''

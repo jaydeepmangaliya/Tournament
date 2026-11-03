@@ -49,22 +49,105 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
 
   const handleAddFunds = async (e) => {
     e.preventDefault();
-    if (!addAmount || parseFloat(addAmount) <= 0) {
+    const amt = parseFloat(addAmount);
+    if (!amt || amt <= 0) {
       setMessage({ type: 'error', text: 'Please enter a valid amount' });
       return;
     }
     setActionLoading(true);
     setMessage({ type: '', text: '' });
     try {
+      // 1. Create Razorpay order
+      const orderRes = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/payment/create-order`,
+        { amount: amt, tournamentId: 0 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const orderData = orderRes.data;
+      const orderId = orderData.orderId || orderData.order?.id;
+      if (!orderId) {
+        throw new Error(orderData.message || 'Failed to initialize payment gateway');
+      }
+
+      const rzpKey = orderData.key || 'rzp_test_WyypEVHeheZwJ5';
+
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
+      }
+
+      const options = {
+        key: rzpKey,
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: 'LOCALESPORT',
+        description: `Wallet Top-Up: ₹${amt}`,
+        order_id: orderId,
+        theme: {
+          color: '#000000',
+        },
+        modal: {
+          ondismiss: () => {
+            setActionLoading(false);
+          },
+        },
+        handler: async (response) => {
+          try {
+            const verifyRes = await axios.post(
+              `${import.meta.env.VITE_API_URL}/api/payment/verify`,
+              {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                amount: amt,
+                tournamentId: 0,
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (verifyRes.data.status) {
+              setMessage({ type: 'success', text: `₹${amt} added to wallet successfully via Razorpay!` });
+              await fetchWallet();
+              setTimeout(() => setActiveTab('balances'), 1200);
+            } else {
+              setMessage({ type: 'error', text: verifyRes.data.message || 'Payment verification failed' });
+            }
+          } catch (vErr) {
+            setMessage({ type: 'error', text: vErr.response?.data?.message || 'Payment verification failed' });
+          } finally {
+            setActionLoading(false);
+          }
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (resp) => {
+        setMessage({ type: 'error', text: resp.error.description || 'Payment failed' });
+        setActionLoading(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error('Wallet add funds error:', err);
+      setMessage({ type: 'error', text: err.response?.data?.message || err.message || 'Payment failed to initiate' });
+      setActionLoading(false);
+    }
+  };
+
+  // Instant test top-up for fast dev/demo testing
+  const handleTestAddFunds = async () => {
+    const amt = parseFloat(addAmount) || 100;
+    setActionLoading(true);
+    setMessage({ type: '', text: '' });
+    try {
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/wallet/add-funds`,
-        { amount: parseFloat(addAmount) },
+        { amount: amt },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.status) {
-        setMessage({ type: 'success', text: res.data.message });
+        setMessage({ type: 'success', text: `₹${amt} credited instantly (Dev Test Mode)` });
         await fetchWallet();
-        setTimeout(() => setActiveTab('balances'), 1200);
+        setTimeout(() => setActiveTab('balances'), 1000);
       } else {
         setMessage({ type: 'error', text: res.data.message });
       }
@@ -203,58 +286,84 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
                 {/* BALANCES TAB */}
                 {activeTab === 'balances' && wallet && (
                   <div className="space-y-4">
-                    {/* Total Balance Card */}
-                    <div className="bg-gradient-to-b from-zinc-800/80 to-zinc-900 border border-zinc-700 p-6 rounded-2xl text-center shadow-lg">
-                      <p className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold mb-1">
-                        Total Balance Available
+                    {/* Player Earnings / Cashout Balance Card */}
+                    <div className="bg-gradient-to-b from-zinc-800/90 to-zinc-950 border border-zinc-700 p-6 rounded-2xl text-center shadow-2xl relative overflow-hidden">
+                      <div className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider mb-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1"></span>
+                        Platform Cashout Balance
+                      </div>
+                      <p className="text-[11px] uppercase tracking-widest text-zinc-400 font-bold mb-1">
+                        Amount LocalEsport Needs to Pay You
                       </p>
-                      <h3 className="text-4xl font-black text-white">
-                        ₹{wallet.balances.total.toFixed(2)}
+                      <h3 className="text-4xl font-black text-white font-mono">
+                        ₹{wallet.balances.withdrawable.toFixed(2)}
                       </h3>
                       <p className="text-xs text-zinc-400 mt-2">
-                        Usable directly for entering Free Fire & PUBG Mobile matches
+                        Pure net earnings from Booyah / kills & affiliate rewards, ready to withdraw to your UPI
                       </p>
                     </div>
 
                     {/* Breakdown */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 text-center">
                       <div className="bg-[#121218] p-3.5 rounded-xl border border-zinc-800">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block mb-1">Deposit</span>
-                        <span className="text-base font-black text-white">
-                          ₹{wallet.balances.deposit.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="bg-[#121218] p-3.5 rounded-xl border border-zinc-800">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block mb-1">Winnings</span>
-                        <span className="text-base font-black text-silver">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block mb-1">Match Winnings</span>
+                        <span className="text-base font-black text-white font-mono">
                           ₹{wallet.balances.winning.toFixed(2)}
                         </span>
+                        <span className="text-[9px] text-zinc-500 block mt-0.5">Won from Tournaments</span>
                       </div>
                       <div className="bg-[#121218] p-3.5 rounded-xl border border-zinc-800">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block mb-1">Referral / Bonus</span>
-                        <span className="text-base font-black text-zinc-300">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block mb-1">Referral Rewards</span>
+                        <span className="text-base font-black text-zinc-200 font-mono">
                           ₹{wallet.balances.referral.toFixed(2)}
                         </span>
+                        <span className="text-[9px] text-zinc-500 block mt-0.5">Affiliate Commissions</span>
+                      </div>
+                      <div className="bg-[#121218] p-3.5 rounded-xl border border-zinc-800">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block mb-1">Deposits</span>
+                        <span className="text-base font-black text-zinc-400 font-mono">
+                          ₹{wallet.balances.deposit.toFixed(2)}
+                        </span>
+                        <span className="text-[9px] text-zinc-500 block mt-0.5">Preloaded Balance</span>
                       </div>
                     </div>
 
+                    {/* Total balance row */}
                     <div className="bg-[#121218] rounded-xl p-3 border border-zinc-800 text-xs text-zinc-300 flex justify-between items-center">
-                      <span>Withdrawable to UPI (Winnings + Bonus):</span>
-                      <strong className="text-white font-mono text-sm">₹{wallet.balances.withdrawable.toFixed(2)}</strong>
+                      <span className="flex items-center space-x-1.5">
+                        <span className="text-zinc-400">Total Account Balance:</span>
+                      </span>
+                      <strong className="text-white font-mono text-sm">₹{wallet.balances.total.toFixed(2)}</strong>
+                    </div>
+
+                    {/* Direct checkout info note */}
+                    <div className="bg-[#10131a] rounded-xl p-3 border border-zinc-800/80 text-[11px] text-zinc-400 flex items-start space-x-2">
+                      <svg className="w-4 h-4 text-zinc-300 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                      <span>
+                        <strong className="text-zinc-200">No deposit needed to play:</strong> You can join any tournament directly via UPI / Card at checkout. This wallet holds the prizes you win!
+                      </span>
                     </div>
 
                     <div className="flex space-x-3 pt-2">
                       <button
-                        onClick={() => setActiveTab('add')}
-                        className="flex-1 py-2.5 bg-silver-gradient hover:brightness-110 text-black rounded-xl font-black text-xs uppercase tracking-wider transition"
+                        onClick={() => setActiveTab('withdraw')}
+                        className="flex-1 py-3 bg-silver-gradient hover:brightness-110 text-black rounded-xl font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
-                        + Add Funds
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span>Withdraw Cash to UPI</span>
                       </button>
                       <button
-                        onClick={() => setActiveTab('withdraw')}
-                        className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 rounded-xl font-bold text-xs uppercase tracking-wider transition"
+                        onClick={() => setActiveTab('add')}
+                        className="py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                       >
-                        Withdraw Cash
+                        + Add Funds
                       </button>
                     </div>
                   </div>
@@ -263,9 +372,13 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
                 {/* ADD FUNDS TAB */}
                 {activeTab === 'add' && (
                   <form onSubmit={handleAddFunds} className="space-y-4">
+                    <div className="bg-[#121218] p-3 rounded-xl border border-zinc-800 text-[11px] text-zinc-400">
+                      <strong className="text-zinc-200">Optional Pre-Funding:</strong> You do not need to add funds to register for matches. However, you can top-up here if you prefer 1-click slot entries.
+                    </div>
+
                     <div>
                       <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-2 font-bold">
-                        Enter Amount (₹)
+                        Enter Top-up Amount (₹)
                       </label>
                       <input
                         type="number"
@@ -284,7 +397,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
                           key={amt}
                           type="button"
                           onClick={() => setAddAmount(amt)}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold border ${
+                          className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${
                             addAmount === amt
                               ? 'bg-zinc-200 text-black border-white'
                               : 'bg-[#14141a] border-zinc-800 text-zinc-400 hover:text-white'
@@ -298,10 +411,24 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
                     <button
                       type="submit"
                       disabled={actionLoading}
-                      className="w-full py-3 bg-silver-gradient hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition disabled:opacity-50"
+                      className="w-full py-3 bg-silver-gradient hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg disabled:opacity-50 cursor-pointer flex items-center justify-center space-x-1.5"
                     >
-                      {actionLoading ? 'Processing...' : `Add ₹${addAmount || 0} to Wallet`}
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                      </svg>
+                      <span>{actionLoading ? 'Connecting to Razorpay...' : `Pay ₹${addAmount || 0} via UPI / Card (Razorpay)`}</span>
                     </button>
+
+                    <div className="pt-1 text-center">
+                      <button
+                        type="button"
+                        onClick={handleTestAddFunds}
+                        disabled={actionLoading}
+                        className="text-[11px] text-zinc-500 hover:text-zinc-300 underline font-medium transition cursor-pointer"
+                      >
+                        ⚡ Instant Test Credit (Dev / Sandbox mode)
+                      </button>
+                    </div>
                   </form>
                 )}
 

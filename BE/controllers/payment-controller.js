@@ -87,5 +87,25 @@ exports.getPaymentStatus = async (req, res) => {
     }
 };
 
+exports.verifyAndJoinTournament = async (req, res) => {
+    try {
+        console.log("Verifying direct checkout payment and booking slot:", req.body);
+
+        const result = await paymentService.verifyAndJoinTournament(req);
+
+        if (!result.status) {
+            return res.status(400).json(result);
+        }
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("Error in verifyAndJoinTournament controller:", error);
+        res.status(500).json({
+            status: false,
+            message: error.message || "Failed to process direct tournament payment."
+        });
+    }
+};
+
 // Export the middleware for use in routes
 exports.authenticateToken = authenticateToken;

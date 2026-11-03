@@ -12,23 +12,24 @@ const razorpayInstance = new razorpay({
 
 paymentService.createOrder = async (req) => {
     try {
-        const { amount, currency = 'INR', tournamentId, tournamentName } = req.body;
+        const { amount, currency = 'INR', tournamentId = 0, tournamentName = 'Tournament / Wallet Top-up' } = req.body;
 
-        if (!amount || !tournamentId) {
-            throw new Error("Amount and tournament ID are required");
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount <= 0) {
+            throw new Error("Valid amount is required");
         }
 
         // Convert amount to paise (Razorpay expects amount in smallest currency unit)
-        const amountInPaise = Math.round(amount * 100);
+        const amountInPaise = Math.round(numAmount * 100);
 
         const options = {
             amount: amountInPaise,
             currency: currency,
-            receipt: `tournament_${tournamentId}_${Date.now()}`,
+            receipt: `rcpt_${tournamentId || 'wallet'}_${Date.now()}`,
             notes: {
-                tournamentId: tournamentId,
-                tournamentName: tournamentName,
-                userId: req.user?.id || 'guest',
+                tournamentId: String(tournamentId || 0),
+                tournamentName: tournamentName || 'Wallet Top-up',
+                userId: String(req.user?.id || 'guest'),
                 userEmail: req.user?.email || 'guest@example.com'
             }
         };
@@ -45,7 +46,8 @@ paymentService.createOrder = async (req) => {
                 orderId: order.id,
                 amount: order.amount,
                 currency: order.currency,
-                receipt: order.receipt
+                receipt: order.receipt,
+                key: process.env.RAZORPAY_KEY_ID
             }
         };
 
@@ -192,6 +194,92 @@ paymentService.getPaymentStatus = async (req) => {
     } catch (error) {
         console.error("Error in getPaymentStatus service:", error);
         return { status: false, error: error.message };
+    }
+};
+
+// DIRECT TOURNAMENT CHECKOUT: Verify Razorpay payment and immediately book slot in tournament
+paymentService.verifyAndJoinTournament = async (req) => {
+    try {
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            tournamentId,
+            amount,
+            teamName,
+            slotNumber,
+            players = []
+        } = req.body;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return { status: false, message: "Missing Razorpay payment verification parameters." };
+        }
+
+        if (!tournamentId) {
+            return { status: false, message: "Tournament ID is required." };
+        }
+
+        // 1. Verify HMAC SHA256 Signature
+        const body = razorpay_order_id + "|" + razorpay_payment_id;
+        const expectedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(body.toString())
+            .digest('hex');
+
+        if (expectedSignature !== razorpay_signature) {
+            return { status: false, message: "Payment verification failed: Invalid signature." };
+        }
+
+        // 2. Fetch payment details from Razorpay to verify capture
+        const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+        if (payment.status !== 'captured') {
+            return { status: false, message: `Payment not captured. Status: ${payment.status}` };
+        }
+
+        // 3. Resolve user ID
+        const userId = req.user?.id;
+        if (!userId) {
+            return { status: false, message: "Unauthorized user session. Please log in." };
+        }
+
+        // 4. Save record to payments table
+        try {
+            await db.promise().query(
+                `INSERT INTO payments (
+                    user_id, user_email, tournament_id, razorpay_order_id,
+                    razorpay_payment_id, amount, currency, status,
+                    payment_method, created_at, razorpay_created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, NOW(), ?)`,
+                [
+                    userId,
+                    req.user.email || null,
+                    tournamentId,
+                    razorpay_order_id,
+                    razorpay_payment_id,
+                    amount || (payment.amount / 100),
+                    payment.currency || 'INR',
+                    payment.method || 'upi',
+                    new Date(payment.created_at * 1000)
+                ]
+            );
+        } catch (dbErr) {
+            console.error("Payment insert log error:", dbErr.message);
+        }
+
+        // 5. Directly book the slot in the tournament via tournamentService!
+        const tournamentService = require('./tournament-service');
+        const joinResult = await tournamentService.joinTournament(tournamentId, userId, {
+            teamName,
+            slotNumber,
+            players,
+            paymentMethod: 'razorpay',
+            razorpayPaymentId: razorpay_payment_id
+        });
+
+        return joinResult;
+    } catch (error) {
+        console.error("Error in verifyAndJoinTournament:", error);
+        return { status: false, message: error.message };
     }
 };
 
