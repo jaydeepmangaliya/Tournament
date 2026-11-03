@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import Toast from './Toast';
 
 export default function SquadRegisterModal({
   isOpen,
@@ -41,14 +42,26 @@ export default function SquadRegisterModal({
   });
 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
   const [alreadyRegistered, setAlreadyRegistered] = useState(Boolean(tournament?.is_registered));
   const [mySlotNumber, setMySlotNumber] = useState(tournament?.my_slot_number || null);
+
+  const showToast = (message, type = 'error', title = '') => {
+    setToast({ message, type, title });
+  };
 
   const entryFee = parseFloat(tournament.entry_fee || 0);
   const hasEnoughBalance = walletBalance >= entryFee;
   const isMatchFull = bookedSlots.length >= totalSlots;
   const [paymentMethod, setPaymentMethod] = useState(() => (hasEnoughBalance ? 'wallet' : 'razorpay'));
+
+  // Detect duplicate UIDs entered in the roster
+  const duplicateUids = new Set(
+    players
+      .slice(0, requiredPlayers)
+      .map(p => p.inGameId.trim())
+      .filter((uid, idx, arr) => uid && arr.indexOf(uid) !== idx)
+  );
 
   // Update paymentMethod if wallet balance changes
   useEffect(() => {
@@ -101,40 +114,39 @@ export default function SquadRegisterModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
 
     if (!token) {
-      alert('Please log in first to join tournaments.');
+      showToast('Please log in first to join tournaments.', 'warning', 'Login Required');
       return;
     }
 
     if (isMatchFull) {
-      setError('This match is already completely booked. Please join the newly created match in lobby.');
+      showToast('This match is already completely booked. A fresh round is live in the lobby.', 'warning', 'Match Full');
       return;
     }
 
     if (alreadyRegistered) {
-      setError(`You are already registered for this match in Slot #${mySlotNumber || '1'}. One player account cannot register twice in the same match.`);
+      showToast(`You are already registered for this match in Slot #${mySlotNumber || '1'}.`, 'warning', 'Already Registered');
       return;
     }
 
     if (!selectedSlot) {
-      setError('Please select an available slot.');
+      showToast('Please select an available slot to register.', 'error', 'Slot Required');
       return;
     }
 
     if (bookedSlots.includes(selectedSlot)) {
-      setError(`Slot #${selectedSlot} was just booked by another player! Please choose an available slot.`);
+      showToast(`Slot #${selectedSlot} was just booked by another player! Please pick another slot.`, 'warning', 'Slot Taken');
       return;
     }
 
     for (let i = 0; i < requiredPlayers; i++) {
       if (!players[i].inGameName.trim()) {
-        setError(`Please enter In-Game Name for Player #${i + 1}`);
+        showToast(`Please enter In-Game Name for Player #${i + 1}`, 'error', 'Missing Name');
         return;
       }
       if (!players[i].inGameId.trim()) {
-        setError(`Please enter In-Game ID (UID) for Player #${i + 1}`);
+        showToast(`Please enter In-Game ID (UID) for Player #${i + 1}`, 'error', 'Missing UID');
         return;
       }
     }
@@ -142,7 +154,7 @@ export default function SquadRegisterModal({
     // Check for duplicate UIDs within squad
     const uids = players.slice(0, requiredPlayers).map(p => p.inGameId.trim());
     if (new Set(uids).size !== uids.length) {
-      setError('Duplicate Free Fire / BGMI In-Game IDs entered. Each player in your squad must have a unique UID.');
+      showToast('Duplicate Free Fire / BGMI In-Game IDs entered. Each player in your squad must have a unique UID.', 'error', 'Duplicate UID Detected');
       return;
     }
 
@@ -153,7 +165,7 @@ export default function SquadRegisterModal({
     // PATH 1: PAY VIA WALLET BALANCE
     if (paymentMethod === 'wallet') {
       if (!hasEnoughBalance) {
-        setError(`Insufficient wallet balance. You need ₹${entryFee}, but have ₹${walletBalance.toFixed(2)}. Please select Direct UPI Payment below.`);
+        showToast(`Insufficient wallet balance. You need ₹${entryFee}, but have ₹${walletBalance.toFixed(2)}. Please choose Direct UPI Payment below.`, 'warning', 'Insufficient Balance');
         return;
       }
 
@@ -177,14 +189,16 @@ export default function SquadRegisterModal({
         );
 
         if (res.data.status) {
-          alert(res.data.message || 'Registration successful!');
-          if (onRegistrationSuccess) onRegistrationSuccess();
-          onClose();
+          showToast(res.data.message || `Slot #${selectedSlot} locked successfully!`, 'success', 'Registration Confirmed');
+          setTimeout(() => {
+            if (onRegistrationSuccess) onRegistrationSuccess();
+            onClose();
+          }, 1200);
         } else {
-          setError(res.data.message || 'Registration failed');
+          showToast(res.data.message || 'Registration failed. Try again.', 'error');
         }
       } catch (err) {
-        setError(err.response?.data?.message || 'Registration failed. Try again.');
+        showToast(err.response?.data?.message || 'Registration failed. Try again.', 'error');
       } finally {
         setSubmitting(false);
       }
@@ -275,15 +289,17 @@ export default function SquadRegisterModal({
             );
 
             if (verifyRes.data.status) {
-              alert(verifyRes.data.message || `Payment verified! You are registered for Slot #${selectedSlot}!`);
-              if (onRegistrationSuccess) onRegistrationSuccess();
-              onClose();
+              showToast(verifyRes.data.message || `Payment verified! You are locked in Slot #${selectedSlot}!`, 'success', 'Slot Confirmed');
+              setTimeout(() => {
+                if (onRegistrationSuccess) onRegistrationSuccess();
+                onClose();
+              }, 1200);
             } else {
-              setError(verifyRes.data.message || `Payment was received (ID: ${paymentResponse.razorpay_payment_id}), but slot booking failed. Please contact admin.`);
+              showToast(verifyRes.data.message || `Payment received (ID: ${paymentResponse.razorpay_payment_id}), but booking failed. Please contact admin.`, 'warning');
             }
           } catch (vErr) {
             console.error('Verify error:', vErr);
-            setError(vErr.response?.data?.message || 'Payment verification failed. If money was deducted, contact support.');
+            showToast(vErr.response?.data?.message || 'Payment verification failed. If money was deducted, contact support.', 'error');
           } finally {
             setSubmitting(false);
           }
@@ -302,12 +318,12 @@ export default function SquadRegisterModal({
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', function (failedResp) {
         setSubmitting(false);
-        setError(`Payment failed: ${failedResp.error.description || failedResp.error.reason}`);
+        showToast(`Payment failed: ${failedResp.error?.description || failedResp.error?.reason || 'Transaction incomplete'}`, 'error', 'Payment Failed');
       });
       rzp.open();
     } catch (payErr) {
       console.error('Payment checkout error:', payErr);
-      setError(payErr.response?.data?.message || payErr.message || 'Payment failed to initialize.');
+      showToast(payErr.response?.data?.message || payErr.message || 'Payment failed to initialize.', 'error');
       setSubmitting(false);
     }
   };
@@ -315,11 +331,14 @@ export default function SquadRegisterModal({
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+        {/* Floating Toast Notification */}
+        <Toast toast={toast} onClose={() => setToast(null)} />
+
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-[#0c0c10] border border-zinc-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl text-[#e4e4e7] my-auto max-h-[94vh] sm:max-h-[90vh] flex flex-col"
+          className="bg-[#0c0c10] border border-zinc-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl text-[#e4e4e7] my-auto max-h-[94vh] sm:max-h-[90vh] flex flex-col relative"
         >
           {/* Header */}
           <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-zinc-800 bg-[#121218] flex items-center justify-between flex-shrink-0">
@@ -337,19 +356,13 @@ export default function SquadRegisterModal({
               </div>
               <h2 className="text-sm sm:text-lg font-bold text-white mt-1 leading-snug">{tournament.title}</h2>
             </div>
-            <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl p-1">
+            <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl p-1 cursor-pointer">
               &times;
             </button>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
-            {error && (
-              <div className="p-3 bg-red-950/40 border border-red-700 text-red-300 rounded-xl text-xs font-semibold">
-                {error}
-              </div>
-            )}
-
             {/* Quick Specs */}
             <div className="grid grid-cols-3 gap-2 bg-[#121218] p-3 rounded-xl border border-zinc-800 text-center text-xs">
               <div>
@@ -519,16 +532,27 @@ export default function SquadRegisterModal({
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-zinc-500 block mb-0.5">
-                        In-Game UID / Character ID *
-                      </label>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="text-[10px] uppercase font-bold text-zinc-500 block">
+                          In-Game UID / Character ID *
+                        </label>
+                        {p.inGameId && duplicateUids.has(p.inGameId.trim()) && (
+                          <span className="text-[9px] text-red-400 font-bold uppercase tracking-wider">
+                            Duplicate UID
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         placeholder={tournament.game_slug === 'free-fire' ? 'e.g. 192847192' : 'e.g. 518294719'}
                         value={p.inGameId}
                         onChange={(e) => handlePlayerChange(idx, 'inGameId', e.target.value)}
-                        className="w-full bg-[#0a0a0e] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-400"
+                        className={`w-full bg-[#0a0a0e] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none transition ${
+                          p.inGameId && duplicateUids.has(p.inGameId.trim())
+                            ? 'border-2 border-red-500/80 bg-red-950/20 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
+                            : 'border border-zinc-700 focus:border-zinc-400'
+                        }`}
                       />
                     </div>
                   </div>

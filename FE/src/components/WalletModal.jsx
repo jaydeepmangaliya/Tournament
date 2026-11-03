@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import Toast from './Toast';
 
 export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
   const [activeTab, setActiveTab] = useState('balances'); // 'balances' | 'add' | 'withdraw' | 'history'
@@ -16,7 +17,11 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     holderName: '',
   });
   const [actionLoading, setActionLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'error', title = '') => {
+    setToast({ message, type, title });
+  };
 
   const token = localStorage.getItem('token');
 
@@ -51,11 +56,10 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     e.preventDefault();
     const amt = parseFloat(addAmount);
     if (!amt || amt <= 0) {
-      setMessage({ type: 'error', text: 'Please enter a valid amount' });
+      showToast('Please enter a valid amount', 'error');
       return;
     }
     setActionLoading(true);
-    setMessage({ type: '', text: '' });
     try {
       // 1. Create Razorpay order
       const orderRes = await axios.post(
@@ -132,14 +136,14 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
             );
 
             if (verifyRes.data.status) {
-              setMessage({ type: 'success', text: `₹${amt} added to wallet successfully via Razorpay!` });
+              showToast(`₹${amt} added to wallet successfully via Razorpay!`, 'success', 'Top-up Successful');
               await fetchWallet();
               setTimeout(() => setActiveTab('balances'), 1200);
             } else {
-              setMessage({ type: 'error', text: verifyRes.data.message || 'Payment verification failed' });
+              showToast(verifyRes.data.message || 'Payment verification failed', 'error');
             }
           } catch (vErr) {
-            setMessage({ type: 'error', text: vErr.response?.data?.message || 'Payment verification failed' });
+            showToast(vErr.response?.data?.message || 'Payment verification failed', 'error');
           } finally {
             setActionLoading(false);
           }
@@ -148,13 +152,13 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
 
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', (resp) => {
-        setMessage({ type: 'error', text: resp.error.description || 'Payment failed' });
+        showToast(resp.error?.description || 'Payment failed', 'error', 'Payment Failed');
         setActionLoading(false);
       });
       rzp.open();
     } catch (err) {
       console.error('Wallet add funds error:', err);
-      setMessage({ type: 'error', text: err.response?.data?.message || err.message || 'Payment failed to initiate' });
+      showToast(err.response?.data?.message || err.message || 'Payment failed to initiate', 'error');
       setActionLoading(false);
     }
   };
@@ -163,7 +167,6 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
   const handleTestAddFunds = async () => {
     const amt = parseFloat(addAmount) || 100;
     setActionLoading(true);
-    setMessage({ type: '', text: '' });
     try {
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/wallet/add-funds`,
@@ -171,14 +174,14 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.status) {
-        setMessage({ type: 'success', text: `₹${amt} credited instantly (Dev Test Mode)` });
+        showToast(`₹${amt} credited instantly (Dev Test Mode)`, 'success', 'Funds Added');
         await fetchWallet();
         setTimeout(() => setActiveTab('balances'), 1000);
       } else {
-        setMessage({ type: 'error', text: res.data.message });
+        showToast(res.data.message || 'Failed to add test funds', 'error');
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to add funds' });
+      showToast(err.response?.data?.message || 'Failed to add funds', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -188,11 +191,10 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     e.preventDefault();
     const amt = parseFloat(withdrawAmount);
     if (!amt || amt < 30) {
-      setMessage({ type: 'error', text: 'Minimum withdrawal amount is ₹30' });
+      showToast('Minimum withdrawal amount is ₹30', 'error', 'Invalid Amount');
       return;
     }
     setActionLoading(true);
-    setMessage({ type: '', text: '' });
     try {
       const payload = {
         amount: amt,
@@ -210,14 +212,14 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
       );
 
       if (res.data.status) {
-        setMessage({ type: 'success', text: res.data.message });
+        showToast(res.data.message || 'Withdrawal request submitted! We will process it shortly.', 'success', 'Withdrawal Requested');
         await fetchWallet();
-        setTimeout(() => setActiveTab('balances'), 2000);
+        setTimeout(() => setActiveTab('balances'), 1500);
       } else {
-        setMessage({ type: 'error', text: res.data.message });
+        showToast(res.data.message || 'Withdrawal failed', 'error');
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Withdrawal request failed' });
+      showToast(err.response?.data?.message || 'Withdrawal request failed', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -228,11 +230,14 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+        {/* Floating Toast Notification */}
+        <Toast toast={toast} onClose={() => setToast(null)} />
+
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-[#0c0c10] border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl text-[#e4e4e7] my-auto max-h-[94vh] sm:max-h-[90vh] flex flex-col"
+          className="bg-[#0c0c10] border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl text-[#e4e4e7] my-auto max-h-[94vh] sm:max-h-[90vh] flex flex-col relative"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-zinc-800 bg-[#121218] flex-shrink-0">
@@ -249,7 +254,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
             </div>
             <button
               onClick={onClose}
-              className="text-zinc-400 hover:text-white text-2xl leading-none focus:outline-none p-1"
+              className="text-zinc-400 hover:text-white text-2xl leading-none focus:outline-none p-1 cursor-pointer"
             >
               &times;
             </button>
@@ -258,32 +263,32 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
           {/* Navigation Tabs */}
           <div className="flex border-b border-zinc-800 text-[11px] sm:text-xs font-bold uppercase tracking-wider bg-[#0f0f14] flex-shrink-0">
             <button
-              onClick={() => { setActiveTab('balances'); setMessage({ type: '', text: '' }); }}
-              className={`flex-1 py-2.5 sm:py-3 text-center transition ${
+              onClick={() => setActiveTab('balances')}
+              className={`flex-1 py-2.5 sm:py-3 text-center transition cursor-pointer ${
                 activeTab === 'balances' ? 'text-white border-b-2 border-white bg-white/5' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Balances
             </button>
             <button
-              onClick={() => { setActiveTab('add'); setMessage({ type: '', text: '' }); }}
-              className={`flex-1 py-2.5 sm:py-3 text-center transition ${
+              onClick={() => setActiveTab('add')}
+              className={`flex-1 py-2.5 sm:py-3 text-center transition cursor-pointer ${
                 activeTab === 'add' ? 'text-white border-b-2 border-white bg-white/5' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               + Add
             </button>
             <button
-              onClick={() => { setActiveTab('withdraw'); setMessage({ type: '', text: '' }); }}
-              className={`flex-1 py-2.5 sm:py-3 text-center transition ${
+              onClick={() => setActiveTab('withdraw')}
+              className={`flex-1 py-2.5 sm:py-3 text-center transition cursor-pointer ${
                 activeTab === 'withdraw' ? 'text-white border-b-2 border-white bg-white/5' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Withdraw
             </button>
             <button
-              onClick={() => { setActiveTab('history'); setMessage({ type: '', text: '' }); }}
-              className={`flex-1 py-2.5 sm:py-3 text-center transition ${
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 py-2.5 sm:py-3 text-center transition cursor-pointer ${
                 activeTab === 'history' ? 'text-white border-b-2 border-white bg-white/5' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -293,18 +298,6 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
 
           {/* Body */}
           <div className="p-4 sm:p-6 overflow-y-auto flex-1">
-            {message.text && (
-              <div
-                className={`mb-4 p-3 rounded-xl text-xs font-semibold ${
-                  message.type === 'success'
-                    ? 'bg-zinc-800 border border-zinc-600 text-white'
-                    : 'bg-red-950/40 border border-red-700 text-red-300'
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
-
             {loading ? (
               <div className="py-12 text-center text-zinc-500 text-xs">Loading wallet ledger...</div>
             ) : (
