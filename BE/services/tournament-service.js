@@ -1437,6 +1437,7 @@ tournamentService.ensureOpenLobbyExists = async (gameId, format, matchType, sour
 };
 
 // 14. Weekly & All-Time Leaderboard
+// 14. Competitive Leaderboard (100% Real Database Aggregation, ZERO Dummy Data)
 tournamentService.getLeaderboard = async (query = {}) => {
   try {
     const period = query.period === 'all_time' ? 'all_time' : 'weekly';
@@ -1455,26 +1456,12 @@ tournamentService.getLeaderboard = async (query = {}) => {
       LEFT JOIN tournament_teams tt ON tt.leader_user_id = u.id
       WHERE u.role != 'admin'
       GROUP BY u.id
-      HAVING total_earnings > 0 OR matches_played > 0
+      HAVING total_earnings > 0 OR matches_won > 0
       ORDER BY total_earnings DESC, matches_won DESC, total_kills DESC
-      LIMIT 10
+      LIMIT 25
     `;
 
     const [rows] = await db.promise().query(sql);
-
-    // Default top community champions to showcase competitive benchmarks
-    const fallbackChampions = [
-      { id: 'c1', player_name: 'ApexSniper_07', total_earnings: 3450, matches_played: 18, matches_won: 14, total_kills: 68 },
-      { id: 'c2', player_name: 'ViperQueen_FF', total_earnings: 2890, matches_played: 16, matches_won: 11, total_kills: 54 },
-      { id: 'c3', player_name: 'ShadowGod_99', total_earnings: 2150, matches_played: 14, matches_won: 9, total_kills: 47 },
-      { id: 'c4', player_name: 'ThunderOP', total_earnings: 1680, matches_played: 12, matches_won: 7, total_kills: 39 },
-      { id: 'c5', player_name: 'GhostRider_IN', total_earnings: 1420, matches_played: 10, matches_won: 6, total_kills: 32 },
-      { id: 'c6', player_name: 'DeadlyBullet', total_earnings: 1180, matches_played: 9, matches_won: 5, total_kills: 28 },
-      { id: 'c7', player_name: 'NinjaPro_Gaming', total_earnings: 950, matches_played: 8, matches_won: 4, total_kills: 23 },
-      { id: 'c8', player_name: 'DragonSlayer_FF', total_earnings: 780, matches_played: 7, matches_won: 3, total_kills: 19 },
-      { id: 'c9', player_name: 'TitanStriker', total_earnings: 640, matches_played: 6, matches_won: 3, total_kills: 16 },
-      { id: 'c10', player_name: 'BlazeKing_01', total_earnings: 520, matches_played: 5, matches_won: 2, total_kills: 14 }
-    ];
 
     const mappedDb = rows.map((r, idx) => ({
       rank: idx + 1,
@@ -1488,32 +1475,87 @@ tournamentService.getLeaderboard = async (query = {}) => {
       isReal: true,
     }));
 
-    const combined = [...mappedDb];
-    if (combined.length < 10) {
-      const needed = 10 - combined.length;
-      fallbackChampions.slice(0, needed).forEach((c) => {
-        combined.push({
-          rank: combined.length + 1,
-          userId: c.id,
-          playerName: c.player_name,
-          totalEarnings: period === 'all_time' ? c.total_earnings * 3.5 : c.total_earnings,
-          matchesPlayed: period === 'all_time' ? c.matches_played * 3 : c.matches_played,
-          matchesWon: period === 'all_time' ? c.matches_won * 3 : c.matches_won,
-          totalKills: period === 'all_time' ? c.total_kills * 3 : c.total_kills,
-          winRate: Math.round((c.matches_won / c.matches_played) * 100),
-          isReal: false,
-        });
-      });
-    }
-
     return {
       status: true,
       period,
-      data: combined,
+      data: mappedDb,
     };
   } catch (err) {
     console.error('getLeaderboard error:', err);
     throw err;
+  }
+};
+
+// 15. Live Recent Winners & Payouts Ticker (100% Real Database Activity)
+tournamentService.getLiveTicker = async () => {
+  try {
+    const [recentWinnings] = await db.promise().query(`
+      SELECT 
+        u.name as player_name,
+        wt.amount,
+        wt.description,
+        wt.created_at
+      FROM wallet_transactions wt
+      JOIN users u ON u.id = wt.user_id
+      WHERE wt.type = 'winning' AND wt.status = 'completed'
+      ORDER BY wt.created_at DESC
+      LIMIT 12
+    `);
+
+    const [recentWithdrawals] = await db.promise().query(`
+      SELECT 
+        u.name as player_name,
+        w.amount,
+        w.payout_method,
+        w.created_at
+      FROM withdrawals w
+      JOIN users u ON u.id = w.user_id
+      WHERE w.status = 'approved'
+      ORDER BY w.created_at DESC
+      LIMIT 12
+    `);
+
+    const realEvents = [];
+
+    recentWinnings.forEach((w) => {
+      const matchName = w.description
+        ? w.description.replace(/^Match #\d+ Rank #\d+ Prize \((.*?)\).*/, '$1').replace(/\(Random Squad Share: .*\)/, '').trim()
+        : 'Tournament Arena';
+      realEvents.push({
+        id: `win_${w.created_at}_${w.player_name}_${w.amount}`,
+        type: 'winning',
+        text: `⚡ ${w.player_name} won ₹${parseFloat(w.amount).toFixed(2)} in ${matchName}`,
+        timestamp: w.created_at,
+      });
+    });
+
+    recentWithdrawals.forEach((wd) => {
+      realEvents.push({
+        id: `wd_${wd.created_at}_${wd.player_name}_${wd.amount}`,
+        type: 'withdrawal',
+        text: `💸 ${wd.player_name} cashed out ₹${parseFloat(wd.amount).toFixed(2)} via ${(wd.payout_method || 'upi').toUpperCase()}`,
+        timestamp: wd.created_at,
+      });
+    });
+
+    realEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const platformHighlights = [
+      { id: 'h1', type: 'info', text: '⚡ LIVE ARENA: Free Fire 1v1 Solo Duel, 2v2 Duo & 4v4 Clash Squads open for registration' },
+      { id: 'h2', type: 'info', text: '🛡️ GUARANTEED CASHOUTS: Instant withdrawals directly to your UPI & Bank account' },
+      { id: 'h3', type: 'info', text: '🔑 FAST CREDENTIALS: Custom Room ID & Password shared 15 minutes before match start' },
+      { id: 'h4', type: 'info', text: '🎲 SOLO AUTO-MATCH: Play 2v2 & 4v4 even without a squad with proportional entry fee' },
+      { id: 'h5', type: 'info', text: '🏆 COMPETITIVE ARENA: Climb the Weekly Leaderboard and claim real cash prizes' },
+    ];
+
+    return {
+      status: true,
+      hasRealEvents: realEvents.length > 0,
+      data: realEvents.length > 0 ? realEvents : platformHighlights,
+    };
+  } catch (error) {
+    console.error('getLiveTicker error:', error);
+    throw error;
   }
 };
 

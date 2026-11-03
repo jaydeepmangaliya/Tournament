@@ -84,3 +84,12 @@ exports.getLeaderboard = async (req, res) => {
   }
 };
 
+exports.getLiveTicker = async (req, res) => {
+  try {
+    const result = await tournamentService.getLiveTicker();
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+

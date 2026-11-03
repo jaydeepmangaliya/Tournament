@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SquadRegisterModal from './SquadRegisterModal';
 import WalletModal from './WalletModal';
+import LiveActivityTicker from './LiveActivityTicker';
 
 export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState([]);
@@ -118,6 +119,11 @@ export default function TournamentsPage() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* Live Winners & Payouts Ticker */}
+        <div className="rounded-xl overflow-hidden border border-zinc-800/80 shadow-md">
+          <LiveActivityTicker />
         </div>
 
         {/* Filters Bar */}

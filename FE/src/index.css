@@ -63,3 +63,23 @@
   border-color: rgba(255, 255, 255, 0.4);
   box-shadow: 0 0 25px rgba(255, 255, 255, 0.08);
 }
+
+/* Continuous Marquee Ticker */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 35s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

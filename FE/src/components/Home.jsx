@@ -5,7 +5,7 @@ import axios from 'axios';
 import * as THREE from 'three';
 import BIRDS from 'vanta/dist/vanta.birds.min';
 import EarningsCalculator from './EarningsCalculator';
-import LiveKillFeed from './LiveKillFeed';
+import LiveActivityTicker from './LiveActivityTicker';
 import GameplayVideoHero from './GameplayVideoHero';
 import CinematicYouTube from './CinematicYouTube';
 
@@ -274,8 +274,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* LIVE ACTION COMBAT & CASHOUT FEED */}
-      <LiveKillFeed />
+      {/* LIVE ACTIVITY TICKER (100% REAL DATABASE WINNINGS & PAYOUTS) */}
+      <LiveActivityTicker />
 
       {/* 2. HOW TO START & WIN (STREAMLINED TIMELINE) */}
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 border-b border-zinc-900 bg-[#08080b]">
