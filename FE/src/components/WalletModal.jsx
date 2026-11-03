@@ -86,6 +86,32 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
         theme: {
           color: '#000000',
         },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'UPI (Google Pay, PhonePe, Paytm, QR)',
+                instruments: [
+                  {
+                    method: 'upi',
+                  },
+                ],
+              },
+              other: {
+                name: 'Cards & NetBanking',
+                instruments: [
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' },
+                ],
+              },
+            },
+            sequence: ['block.upi', 'block.other'],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
         modal: {
           ondismiss: () => {
             setActionLoading(false);

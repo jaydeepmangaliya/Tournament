@@ -229,6 +229,32 @@ export default function SquadRegisterModal({
           color: '#06b6d4',
           backdrop_color: '#09090d',
         },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'UPI (Google Pay, PhonePe, Paytm, QR)',
+                instruments: [
+                  {
+                    method: 'upi',
+                  },
+                ],
+              },
+              other: {
+                name: 'Cards & NetBanking',
+                instruments: [
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' },
+                ],
+              },
+            },
+            sequence: ['block.upi', 'block.other'],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
         handler: async function (paymentResponse) {
           try {
             setSubmitting(true);
