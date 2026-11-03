@@ -1,4 +1,4 @@
-const { login, register, me, verifyCode } = require('../controllers/auth-controller');
+const { login, register, me, verifyCode, submitKYC } = require('../controllers/auth-controller');
 const { verifyToken } = require('../middleware/userAuth');
 
 module.exports = app => { 
@@ -8,6 +8,7 @@ module.exports = app => {
   router.post('/login', login);
   router.get('/verify-code/:code', verifyCode);
   router.get('/me', verifyToken, me);
+  router.post('/kyc', verifyToken, submitKYC);
 
   app.use('/auth', router);
   app.use('/api/auth', router);

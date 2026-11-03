@@ -65,6 +65,11 @@ export default function SquadRegisterModal({
   const isMatchFull = bookedSlots.length >= totalSlots;
   const [paymentMethod, setPaymentMethod] = useState(() => (hasEnoughBalance ? 'wallet' : 'razorpay'));
 
+  // Prohibited states check under Entry 34 of State List
+  const PROHIBITED_STATES = ['assam', 'as', 'odisha', 'orissa', 'od', 'telangana', 'tg', 'ts', 'andhra pradesh', 'andhra', 'ap', 'nagaland', 'nl', 'sikkim', 'sk'];
+  const userState = (user?.state || '').trim().toLowerCase();
+  const isRestrictedState = userState && PROHIBITED_STATES.some(p => userState === p || userState.includes(p));
+
   // Detect duplicate UIDs entered in the roster
   const duplicateUids = new Set(
     players
@@ -767,6 +772,19 @@ export default function SquadRegisterModal({
                 </div>
               </div>
 
+              {/* Prohibited State Alert */}
+              {isRestrictedState && activeEntryFee > 0 && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-start space-x-2">
+                  <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  <div>
+                    <strong className="block text-red-200">State Legal Restriction ({user.state})</strong>
+                    <span className="text-[11px] leading-relaxed">Under Entry 34 of the State List, residents of Assam, Odisha, Telangana, Andhra Pradesh, Nagaland, and Sikkim are prohibited from participating in real-money contests.</span>
+                  </div>
+                </div>
+              )}
+
               {/* Compliance & 18+ agreement notice */}
               <div className="flex items-center justify-center space-x-1.5 text-[10px] text-zinc-500 pt-1 text-center">
                 <svg className="w-3 h-3 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -783,7 +801,7 @@ export default function SquadRegisterModal({
               {/* Submit Action Button */}
               <button
                 type="submit"
-                disabled={submitting || (!selectedSlot && joinMode !== 'random') || alreadyRegistered}
+                disabled={submitting || (!selectedSlot && joinMode !== 'random') || alreadyRegistered || (isRestrictedState && activeEntryFee > 0)}
                 className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                   paymentMethod === 'razorpay'
                     ? 'bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-500 hover:brightness-110 text-black'
@@ -792,6 +810,8 @@ export default function SquadRegisterModal({
               >
                 {alreadyRegistered
                   ? `Already Registered (Slot #${mySlotNumber || '1'})`
+                  : (isRestrictedState && activeEntryFee > 0)
+                  ? 'Contests Restricted in Your State'
                   : submitting
                   ? 'Processing Registration...'
                   : !selectedSlot

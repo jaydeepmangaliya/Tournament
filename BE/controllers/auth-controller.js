@@ -51,3 +51,20 @@ exports.me = async (req, res) => {
     return res.status(500).json({ status: false, message: error.message });
   }
 };
+
+exports.submitKYC = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ status: false, message: "Unauthorized" });
+    }
+    const result = await authService.submitKYC(userId, req.body);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("submitKYC controller error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};

@@ -98,17 +98,43 @@ walletService.requestWithdrawal = async (userId, body) => {
     // Begin ACID transaction with row-level locking to prevent race-condition concurrency double-spends
     await connection.beginTransaction();
 
-    // Get user and verify role
-    const [users] = await connection.query(`SELECT id, role, status FROM users WHERE id = ? FOR UPDATE`, [userId]);
+    // Get user and verify role, state, and KYC compliance
+    const [users] = await connection.query(
+      `SELECT id, role, status, state, kyc_status, pan_number, pan_name FROM users WHERE id = ? FOR UPDATE`,
+      [userId]
+    );
     if (users.length === 0) {
       await connection.rollback();
       return { status: false, message: "User account not found." };
     }
-    if (users[0].status === 'banned') {
+    const user = users[0];
+    if (user.status === 'banned') {
       await connection.rollback();
       return { status: false, message: "Account is restricted. Cannot process withdrawal." };
     }
-    const userRole = users[0].role;
+
+    // Pillar B: State Restriction Check
+    const PROHIBITED_STATES = ['assam', 'as', 'odisha', 'orissa', 'od', 'telangana', 'tg', 'ts', 'andhra pradesh', 'andhra', 'ap', 'nagaland', 'nl', 'sikkim', 'sk'];
+    const userState = (user.state || '').trim().toLowerCase();
+    if (userState && PROHIBITED_STATES.some(p => userState === p || userState.includes(p))) {
+      await connection.rollback();
+      return {
+        status: false,
+        message: `Payout Restricted: Real-money contests and cash withdrawals are prohibited in ${user.state} under Entry 34 of the State List.`,
+      };
+    }
+
+    // Pillar C: Mandatory KYC Verification Check (IT Rules & DPDP Compliance)
+    if (user.kyc_status !== 'verified') {
+      await connection.rollback();
+      return {
+        status: false,
+        requireKyc: true,
+        message: "Mandatory KYC Required: Under Indian IT Rules and DPDP compliance, PAN & State verification must be completed before withdrawing cash.",
+      };
+    }
+
+    const userRole = user.role;
 
     // Lock wallet row for update
     const [wallets] = await connection.query(
@@ -168,16 +194,26 @@ walletService.requestWithdrawal = async (userId, body) => {
       );
     }
 
-    // Record withdrawal request
+    // Pillar D: Taxation Laws (30% TDS Compliance under Section 194BA)
+    const tdsRate = 30.00;
+    const grossAmount = withdrawAmount;
+    const tdsAmount = parseFloat((grossAmount * (tdsRate / 100)).toFixed(2));
+    const netPayout = parseFloat((grossAmount - tdsAmount).toFixed(2));
+
+    // Record withdrawal request with complete Section 194BA tax audit trail
     const [withdrawResult] = await connection.query(
       `INSERT INTO withdrawals (
-        user_id, role, amount, payout_method, upi_id,
-        bank_account_number, bank_ifsc, account_holder_name, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        user_id, role, amount, gross_amount, tds_rate, tds_amount, net_payout,
+        payout_method, upi_id, bank_account_number, bank_ifsc, account_holder_name, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         userId,
         userRole,
         withdrawAmount,
+        grossAmount,
+        tdsRate,
+        tdsAmount,
+        netPayout,
         payoutMethod,
         upiId ? upiId.trim() : null,
         bankAccountNumber ? bankAccountNumber.trim() : null,
@@ -186,7 +222,7 @@ walletService.requestWithdrawal = async (userId, body) => {
       ]
     );
 
-    // Record wallet ledger transaction
+    // Record wallet ledger transaction with transparent tax breakdown
     await connection.query(
       `INSERT INTO wallet_transactions (
         user_id, type, balance_type, amount, description, reference_id, status
@@ -194,7 +230,7 @@ walletService.requestWithdrawal = async (userId, body) => {
       [
         userId,
         withdrawAmount,
-        `Withdrawal Request via ${payoutMethod.toUpperCase()}`,
+        `Withdrawal: Gross ₹${grossAmount.toFixed(2)} (Sec 194BA 30% TDS: -₹${tdsAmount.toFixed(2)}, Net Payout: ₹${netPayout.toFixed(2)}) via ${(payoutMethod || 'upi').toUpperCase()}`,
         withdrawResult.insertId.toString(),
       ]
     );
@@ -203,8 +239,11 @@ walletService.requestWithdrawal = async (userId, body) => {
 
     return {
       status: true,
-      message: `Withdrawal request for ₹${withdrawAmount.toFixed(2)} submitted successfully! Funds will be transferred within 2-4 hours.`,
+      message: `Withdrawal request for ₹${grossAmount.toFixed(2)} submitted! (30% TDS: ₹${tdsAmount.toFixed(2)}, Net Payout: ₹${netPayout.toFixed(2)}). Payout will be sent within 2-4 hours.`,
       withdrawalId: withdrawResult.insertId,
+      grossAmount,
+      tdsAmount,
+      netPayout,
     };
   } catch (error) {
     await connection.rollback();

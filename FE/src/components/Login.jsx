@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 
 const Login = () => {
@@ -181,10 +181,15 @@ const Login = () => {
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700 font-bold rounded-xl text-xs uppercase tracking-wider transition"
+                  className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700 font-bold rounded-xl text-xs uppercase tracking-wider transition cursor-pointer"
                 >
                   Logout
                 </button>
+              </div>
+              <div className="pt-2 text-center text-[10px] text-zinc-500">
+                <Link to="/terms" target="_blank" className="hover:text-zinc-300 underline transition">
+                  Review Official Terms & Rules
+                </Link>
               </div>
             </div>
           ) : (
@@ -384,14 +389,49 @@ const Login = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-silver-gradient hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition shadow-md disabled:opacity-50 mt-2"
+                  className="w-full py-3.5 bg-silver-gradient hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition shadow-md disabled:opacity-50 mt-2 cursor-pointer"
                 >
                   {loading
                     ? 'Processing...'
                     : isRegisterMode
-                    ? `Create ${role === 'affiliate' ? 'Affiliate (AFF Code)' : 'Player (REF Code)'}`
+                    ? `Create ${role === 'affiliate' ? 'Affiliate Partner Account' : 'Player Account'}`
                     : 'Sign In to LocalEsport'}
                 </button>
+
+                {/* Professional Statutory Compliance & Terms Agreement */}
+                <div className="pt-3 text-center space-y-2">
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    By continuing, you agree to our{' '}
+                    <Link
+                      to="/terms"
+                      target="_blank"
+                      className="text-zinc-200 underline underline-offset-4 hover:text-white font-medium transition"
+                    >
+                      Terms of Service
+                    </Link>
+                    {' '}&amp;{' '}
+                    <Link
+                      to="/fairplay"
+                      target="_blank"
+                      className="text-zinc-200 underline underline-offset-4 hover:text-white font-medium transition"
+                    >
+                      Fair Play Policy
+                    </Link>
+                  </p>
+
+                  <div className="flex items-center justify-center space-x-2 text-[10px] text-zinc-500 font-mono">
+                    <span className="flex items-center space-x-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                      <span>18+ Adults Only</span>
+                    </span>
+                    <span>•</span>
+                    <span>Skill Gaming</span>
+                    <span>•</span>
+                    <Link to="/rules" target="_blank" className="hover:text-zinc-300 underline underline-offset-2">
+                      Restricted States
+                    </Link>
+                  </div>
+                </div>
               </form>
             </div>
           )}

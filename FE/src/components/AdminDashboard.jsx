@@ -811,6 +811,8 @@ export default function AdminDashboard() {
       role: u.role || 'player',
       status: u.status || 'active',
       referral_code: u.referral_code || '',
+      state: u.state || '',
+      kyc_status: u.kyc_status || 'not_submitted',
       deposit_balance: parseFloat(u.deposit_balance || 0),
       winning_balance: parseFloat(u.winning_balance || 0),
       referral_balance: parseFloat(u.referral_balance || 0),
@@ -2298,10 +2300,32 @@ export default function AdminDashboard() {
                         </span>
                       </div>
 
-                      <div className="mt-2">
-                        <span className="text-2xl font-black text-white font-mono">₹{w.amount}</span>
-                        <p className="text-xs font-bold text-zinc-300 mt-1">{w.user_name} ({w.user_phone || 'No Phone'})</p>
-                        <p className="text-[11px] text-zinc-500 font-mono">{w.user_email}</p>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xl font-black text-white font-mono">
+                            ₹{parseFloat(w.net_payout !== undefined && w.net_payout !== null ? w.net_payout : (w.amount * 0.70)).toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                            Net Transfer
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                          <span>Gross: ₹{parseFloat(w.gross_amount || w.amount).toFixed(2)}</span>
+                          <span className="text-amber-400 font-semibold">
+                            Sec 194BA TDS (30%): -₹{parseFloat(w.tds_amount !== undefined && w.tds_amount !== null ? w.tds_amount : (w.amount * 0.30)).toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-zinc-300 pt-1">{w.user_name} ({w.user_phone || 'No Phone'})</p>
+                        <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono">
+                          <span>{w.user_email}</span>
+                          <span className="text-zinc-400">{w.user_state || 'State N/A'}</span>
+                        </div>
+                        {w.user_pan_number && (
+                          <div className="text-[10px] text-zinc-400 font-mono flex items-center justify-between pt-0.5">
+                            <span>PAN: {w.user_pan_number}</span>
+                            <span className="text-emerald-400 font-bold uppercase">{w.user_kyc_status || 'VERIFIED'}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* UPI ID Box */}
@@ -2398,6 +2422,7 @@ export default function AdminDashboard() {
                       <th className="py-3 px-4">User</th>
                       <th className="py-3 px-3">Role</th>
                       <th className="py-3 px-3">Status</th>
+                      <th className="py-3 px-3">KYC & State</th>
                       <th className="py-3 px-3">Deposit Bal</th>
                       <th className="py-3 px-3">Winning Bal</th>
                       <th className="py-3 px-3">Affiliate Bal</th>
@@ -2435,6 +2460,22 @@ export default function AdminDashboard() {
                             }`}
                           >
                             {u.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase block w-fit ${
+                              u.kyc_status === 'verified'
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                : u.kyc_status === 'pending'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            {u.kyc_status || 'NOT SUBMITTED'}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 block mt-0.5 font-sans">
+                            {u.state || 'State N/A'}
                           </span>
                         </td>
                         <td className="py-3 px-3 font-bold text-white">₹{u.deposit_balance}</td>
@@ -2572,6 +2613,32 @@ export default function AdminDashboard() {
                           <option value="active">Active</option>
                           <option value="banned">Banned</option>
                         </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">KYC Status</label>
+                        <select
+                          value={editFormData.kyc_status}
+                          onChange={(e) => setEditFormData({ ...editFormData, kyc_status: e.target.value })}
+                          className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-sans focus:outline-none focus:border-zinc-400"
+                        >
+                          <option value="not_submitted">Not Submitted</option>
+                          <option value="pending">Pending Review</option>
+                          <option value="verified">Verified (Approved)</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">State of Residence</label>
+                        <input
+                          type="text"
+                          value={editFormData.state}
+                          onChange={(e) => setEditFormData({ ...editFormData, state: e.target.value })}
+                          placeholder="e.g. Maharashtra"
+                          className="w-full bg-[#14141d] border border-zinc-700 rounded-xl px-3 py-2 text-white font-sans focus:outline-none focus:border-zinc-400"
+                        />
                       </div>
                     </div>
 

@@ -234,6 +234,13 @@ authService.login = async (body) => {
         winning_balance: winBal,
         referral_balance: refBal,
         total_balance: totBal,
+        state: user.state || null,
+        is_18_plus: user.is_18_plus !== undefined ? user.is_18_plus : 1,
+        kyc_status: user.kyc_status || 'not_submitted',
+        pan_number: user.pan_number || null,
+        pan_name: user.pan_name || null,
+        aadhaar_last4: user.aadhaar_last4 || null,
+        kyc_rejection_reason: user.kyc_rejection_reason || null,
       },
     };
   } catch (error) {
@@ -248,6 +255,7 @@ authService.getProfile = async (emailOrId) => {
     const query = `
       SELECT
         u.id, u.name, u.email, u.phone, u.role, u.referral_code, u.status, u.created_at,
+        u.state, u.is_18_plus, u.kyc_status, u.pan_number, u.pan_name, u.aadhaar_last4, u.kyc_rejection_reason,
         u.affiliate_id, u.referred_by_user_id,
         a.affiliate_code, a.commission_value, a.total_earned, a.total_withdrawn,
         w.deposit_balance, w.winning_balance, w.referral_balance,
@@ -316,6 +324,107 @@ authService.getProfile = async (emailOrId) => {
     };
   } catch (error) {
     console.error("getProfile error:", error.message);
+    throw error;
+  }
+};
+
+// Prohibited states under Entry 34 of State List for paid contests
+const PROHIBITED_STATES = [
+  'assam', 'as',
+  'odisha', 'orissa', 'od',
+  'telangana', 'tg', 'ts',
+  'andhra pradesh', 'andhra', 'ap',
+  'nagaland', 'nl',
+  'sikkim', 'sk'
+];
+
+authService.isProhibitedState = (state) => {
+  if (!state) return false;
+  const s = state.trim().toLowerCase();
+  return PROHIBITED_STATES.some(p => s === p || s.includes(p));
+};
+
+authService.submitKYC = async (userId, body) => {
+  try {
+    const { panNumber, panName, aadhaarLast4, state, is18Plus } = body;
+
+    if (!is18Plus) {
+      return {
+        status: false,
+        message: "Age Requirement: You must be at least 18 years of age to participate in real-money contests under IT rules.",
+      };
+    }
+
+    if (!state || !state.trim()) {
+      return { status: false, message: "Please select your state of residence." };
+    }
+
+    const trimmedState = state.trim();
+    if (authService.isProhibitedState(trimmedState)) {
+      return {
+        status: false,
+        message: `Participation Restricted: Under Entry 34 of the State List, real-money gaming is prohibited in ${trimmedState}. Residents cannot register or withdraw funds.`,
+      };
+    }
+
+    if (!panNumber || !panNumber.trim()) {
+      return { status: false, message: "PAN card number is mandatory under Section 194BA & DPDP compliance." };
+    }
+
+    const cleanPan = panNumber.trim().toUpperCase();
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!panRegex.test(cleanPan)) {
+      return {
+        status: false,
+        message: "Invalid PAN format. Standard PAN is 10 alphanumeric characters (e.g., ABCDE1234F).",
+      };
+    }
+
+    if (!panName || panName.trim().length < 2) {
+      return { status: false, message: "Please enter your full legal name as printed on your PAN card." };
+    }
+
+    let cleanAadhaar = null;
+    if (aadhaarLast4) {
+      cleanAadhaar = aadhaarLast4.toString().trim().slice(-4);
+      if (cleanAadhaar.length !== 4 || isNaN(cleanAadhaar)) {
+        return { status: false, message: "Aadhaar must be the last 4 digits of your Aadhaar card." };
+      }
+    }
+
+    // Check if PAN is already linked to another account
+    const [existingPan] = await db.promise().query(
+      `SELECT id FROM users WHERE pan_number = ? AND id != ? AND kyc_status = 'verified'`,
+      [cleanPan, userId]
+    );
+    if (existingPan.length > 0) {
+      return {
+        status: false,
+        message: "This PAN card number is already linked to another verified player account.",
+      };
+    }
+
+    await db.promise().query(
+      `UPDATE users
+       SET pan_number = ?, pan_name = ?, aadhaar_last4 = ?, state = ?, is_18_plus = 1, kyc_status = 'verified', kyc_rejection_reason = NULL
+       WHERE id = ?`,
+      [cleanPan, panName.trim(), cleanAadhaar, trimmedState, userId]
+    );
+
+    return {
+      status: true,
+      message: "KYC verified successfully! Your account is now fully compliant under Section 194BA & DPDP rules.",
+      data: {
+        pan_number: cleanPan,
+        pan_name: panName.trim(),
+        aadhaar_last4: cleanAadhaar,
+        state: trimmedState,
+        is_18_plus: 1,
+        kyc_status: 'verified',
+      },
+    };
+  } catch (error) {
+    console.error("submitKYC error:", error.message);
     throw error;
   }
 };

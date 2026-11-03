@@ -233,7 +233,11 @@ adminService.getWithdrawals = async (filterStatus = 'all') => {
         w.*,
         u.name as user_name,
         u.email as user_email,
-        u.phone as user_phone
+        u.phone as user_phone,
+        u.state as user_state,
+        u.kyc_status as user_kyc_status,
+        u.pan_number as user_pan_number,
+        u.pan_name as user_pan_name
       FROM withdrawals w
       JOIN users u ON u.id = w.user_id
     `;
@@ -249,10 +253,21 @@ adminService.getWithdrawals = async (filterStatus = 'all') => {
     const [rows] = await db.promise().query(query, params);
     return {
       status: true,
-      data: rows.map(r => ({
-        ...r,
-        amount: parseFloat(r.amount),
-      })),
+      data: rows.map(r => {
+        const rawAmt = parseFloat(r.amount);
+        const gross = parseFloat(r.gross_amount || rawAmt);
+        const tdsRate = parseFloat(r.tds_rate || 30.00);
+        const tds = parseFloat(r.tds_amount !== null && r.tds_amount !== undefined ? r.tds_amount : (gross * (tdsRate / 100)).toFixed(2));
+        const net = parseFloat(r.net_payout !== null && r.net_payout !== undefined ? r.net_payout : (gross - tds).toFixed(2));
+        return {
+          ...r,
+          amount: rawAmt,
+          gross_amount: gross,
+          tds_rate: tdsRate,
+          tds_amount: tds,
+          net_payout: net,
+        };
+      }),
     };
   } catch (error) {
     console.error("getWithdrawals error:", error);
@@ -547,6 +562,7 @@ adminService.getUsers = async (search = '', role = 'all') => {
     let query = `
       SELECT
         u.id, u.name, u.email, u.phone, u.role, u.status, u.referral_code, u.created_at,
+        u.state, u.is_18_plus, u.kyc_status, u.pan_number, u.pan_name, u.aadhaar_last4, u.kyc_rejection_reason,
         w.deposit_balance, w.winning_balance, w.referral_balance,
         COUNT(DISTINCT tt.id) as total_tournaments_played,
         COALESCE(SUM(tt.entry_fee_paid), 0) as total_entry_spent
@@ -674,6 +690,9 @@ adminService.updateUser = async (userId, data) => {
       deposit_balance,
       winning_balance,
       referral_balance,
+      kyc_status,
+      kyc_rejection_reason,
+      state,
     } = data;
 
     // Check user exists
@@ -691,7 +710,10 @@ adminService.updateUser = async (userId, data) => {
            phone = COALESCE(?, phone),
            role = COALESCE(?, role),
            status = COALESCE(?, status),
-           referral_code = COALESCE(?, referral_code)
+           referral_code = COALESCE(?, referral_code),
+           kyc_status = COALESCE(?, kyc_status),
+           kyc_rejection_reason = CASE WHEN ? IS NOT NULL THEN ? ELSE kyc_rejection_reason END,
+           state = COALESCE(?, state)
        WHERE id = ?`,
       [
         name !== undefined ? name : null,
@@ -700,6 +722,10 @@ adminService.updateUser = async (userId, data) => {
         role !== undefined ? role : null,
         status !== undefined ? status : null,
         referral_code !== undefined ? referral_code : null,
+        kyc_status !== undefined ? kyc_status : null,
+        kyc_rejection_reason !== undefined ? kyc_rejection_reason : null,
+        kyc_rejection_reason !== undefined ? kyc_rejection_reason : null,
+        state !== undefined ? state : null,
         userId,
       ]
     );

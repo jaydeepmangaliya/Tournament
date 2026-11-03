@@ -204,6 +204,23 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
       return { status: false, message: "Tournament is no longer open for registration." };
     }
 
+    // Legal Compliance & State Restriction (Entry 34 of State List)
+    if (parseFloat(tournament.entry_fee || 0) > 0) {
+      const [uRows] = await connection.query(`SELECT state, is_18_plus FROM users WHERE id = ?`, [userId]);
+      if (uRows.length > 0) {
+        const u = uRows[0];
+        const PROHIBITED_STATES = ['assam', 'as', 'odisha', 'orissa', 'od', 'telangana', 'tg', 'ts', 'andhra pradesh', 'andhra', 'ap', 'nagaland', 'nl', 'sikkim', 'sk'];
+        const uState = (u.state || '').trim().toLowerCase();
+        if (uState && PROHIBITED_STATES.some(p => uState === p || uState.includes(p))) {
+          await connection.rollback();
+          return {
+            status: false,
+            message: `State Restriction: Residents of ${u.state} are prohibited from participating in paid esports contests under state gaming regulations.`,
+          };
+        }
+      }
+    }
+
     // B. Check if user is already registered for this match
     const [existingReg] = await connection.query(
       `SELECT tp.id, tt.slot_number 
