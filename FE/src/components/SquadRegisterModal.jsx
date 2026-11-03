@@ -333,6 +333,8 @@ export default function SquadRegisterModal({
           } catch (verifyErr) {
             console.error('Verify error:', verifyErr);
             showToast(verifyErr.response?.data?.message || 'Error confirming slot. Please check your transaction.', 'error');
+          } finally {
+            setSubmitting(false);
           }
         },
         modal: {
@@ -343,6 +345,11 @@ export default function SquadRegisterModal({
       };
 
       const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (resp) {
+        console.error('Payment failed:', resp.error);
+        showToast(resp.error?.description || 'Payment failed or was cancelled.', 'error', 'Payment Failed');
+        setSubmitting(false);
+      });
       rzp.open();
     } catch (err) {
       console.error('Direct Checkout Error:', err);
