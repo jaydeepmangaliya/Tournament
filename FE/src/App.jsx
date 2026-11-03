@@ -12,6 +12,7 @@ import ReferAndEarn from './components/ReferAndEarn';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLogin from './components/AdminLogin';
 import WinterEffect from './components/WinterEffect';
+import MatchNotificationManager from './components/MatchNotificationManager';
 
 const App = () => {
   const location = useLocation();
@@ -39,6 +40,7 @@ const App = () => {
   return (
     <div className="bg-[#0a0a0e] min-h-screen text-white">
       {!isAdminRoute && <WinterEffect />}
+      {!isAdminRoute && <MatchNotificationManager />}
       {!isAdminRoute && <Header />}
       <Routes>
         <Route path="/" element={<Home />} />
