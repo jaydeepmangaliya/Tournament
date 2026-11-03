@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: localesport_app
+    restart: always
+    ports:
+      - "2000:2000"
+    env_file:
+      - ./BE/.env
+    environment:
+      - PORT=2000
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:2000/api/tournaments || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
