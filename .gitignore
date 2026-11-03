@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment Variables & Confidential Files
+.env
+.env.*
+*.env
+BE/.env
+FE/.env
+!*.env.example
+
+# Build Artifacts
+dist/
+FE/dist/
+build/
+BE/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Secret Keys, Certificates & Credentials
+*.pem
+*.key
+*.cert
+*.crt
+id_rsa*
+
+# OS & Editor Files
+.DS_Store
+.vscode/
+.idea/
+.gemini/
