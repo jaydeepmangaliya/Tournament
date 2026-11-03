@@ -244,7 +244,7 @@ export default function TournamentsPage() {
                     className="bg-[#0e0e13] border border-zinc-800 hover:border-zinc-600 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between transition duration-300"
                   >
                     {/* Card Header */}
-                    <div className="p-6 pb-4">
+                    <div className="p-4 sm:p-6 pb-3 sm:pb-4">
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                           {t.game_name}
@@ -277,7 +277,7 @@ export default function TournamentsPage() {
                     </div>
 
                     {/* Pricing Specs */}
-                    <div className="px-6 py-3.5 bg-zinc-950/80 border-y border-zinc-800/80 grid grid-cols-3 gap-2 text-center">
+                    <div className="px-4 sm:px-6 py-3 sm:py-3.5 bg-zinc-950/80 border-y border-zinc-800/80 grid grid-cols-3 gap-2 text-center">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Entry Fee</span>
                         <span className="text-sm font-black text-zinc-100">₹{t.entry_fee}</span>
@@ -297,7 +297,7 @@ export default function TournamentsPage() {
                     </div>
 
                     {/* Slots Progress & Action */}
-                    <div className="p-6 pt-4 space-y-3.5">
+                    <div className="p-4 sm:p-6 pt-3 sm:pt-4 space-y-3 sm:space-y-3.5">
                       <div>
                         <div className="flex justify-between text-xs text-zinc-400 mb-1.5 font-semibold">
                           <span>Slots Filled</span>

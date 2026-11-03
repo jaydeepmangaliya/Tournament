@@ -216,7 +216,7 @@ export default function PlayerMatches() {
                 </div>
 
                 {/* Fast Action Buttons */}
-                <div className="flex items-center space-x-2 font-mono flex-shrink-0">
+                <div className="flex items-center flex-wrap gap-2 font-mono w-full sm:w-auto pt-2 sm:pt-0">
                   <button
                     onClick={() => copyText(activeAlertMatch.room_id, 'id', activeAlertMatch.id)}
                     className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition flex items-center space-x-1 shadow-lg"

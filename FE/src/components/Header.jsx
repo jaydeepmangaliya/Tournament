@@ -151,7 +151,7 @@ const Header = () => {
           </nav>
 
           {/* Right Side Actions */}
-          <div className="hidden sm:flex items-center space-x-3">
+          <div className="hidden md:flex items-center space-x-3">
             {isGuest ? (
               <>
                 <Link
@@ -187,7 +187,7 @@ const Header = () => {
                 {/* Wallet Chip */}
                 <button
                   onClick={() => setWalletModalOpen(true)}
-                  className="flex items-center space-x-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 px-3.5 py-1.5 rounded-xl transition shadow-sm"
+                  className="flex items-center space-x-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 px-3.5 py-1.5 rounded-xl transition shadow-sm cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="5" width="20" height="14" rx="2" />
@@ -206,27 +206,31 @@ const Header = () => {
                   <button
                     onClick={handleLogout}
                     title="Sign Out"
-                    className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition text-xs"
+                    className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800/80 rounded-lg transition text-xs cursor-pointer"
                   >
-                    ⎋
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
                   </button>
                 </div>
               </>
             )}
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile hamburger & Quick Wallet */}
           <div className="flex items-center space-x-2 md:hidden">
             {user && (
               <button
                 onClick={() => setWalletModalOpen(true)}
-                className="flex items-center space-x-1.5 bg-zinc-900 border border-zinc-700 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white font-mono active:scale-95 transition"
+                className="flex items-center space-x-1.5 bg-zinc-900 border border-zinc-700 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white font-mono active:scale-95 transition cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="2" y="5" width="20" height="14" rx="2" />
                   <line x1="2" y1="10" x2="22" y2="10" />
                 </svg>
-                <span>₹{walletBalance !== null ? parseFloat(walletBalance).toFixed(0) : '0'}</span>
+                <span>₹{walletBalance !== null ? parseFloat(walletBalance).toFixed(2) : '0.00'}</span>
               </button>
             )}
             <button
@@ -303,7 +307,7 @@ const Header = () => {
                       }}
                       className="py-2.5 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-xl transition"
                     >
-                      Wallet (₹{walletBalance !== null ? parseFloat(walletBalance).toFixed(0) : '0'})
+                      Wallet (₹{walletBalance !== null ? parseFloat(walletBalance).toFixed(2) : '0.00'})
                     </button>
                     <button
                       onClick={() => {
