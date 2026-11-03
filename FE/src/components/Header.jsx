@@ -12,7 +12,13 @@ const Header = () => {
       const stored = localStorage.getItem('user');
       if (stored) {
         const u = JSON.parse(stored);
-        return u.total_balance !== undefined ? parseFloat(u.total_balance) : null;
+        if (u.total_balance !== undefined && u.total_balance !== null) {
+          return parseFloat(u.total_balance) || 0;
+        }
+        const dep = parseFloat(u.deposit_balance || 0);
+        const win = parseFloat(u.winning_balance || 0);
+        const ref = parseFloat(u.referral_balance || 0);
+        return dep + win + ref;
       }
     } catch (e) {}
     return null;

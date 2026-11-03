@@ -767,6 +767,19 @@ export default function SquadRegisterModal({
                 </div>
               </div>
 
+              {/* Compliance & 18+ agreement notice */}
+              <div className="flex items-center justify-center space-x-1.5 text-[10px] text-zinc-500 pt-1 text-center">
+                <svg className="w-3 h-3 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>
+                  18+ only. By joining, you confirm compliance with our{' '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-zinc-300 underline hover:text-white font-medium">
+                    Terms & Fair Play Rules
+                  </a>.
+                </span>
+              </div>
+
               {/* Submit Action Button */}
               <button
                 type="submit"
@@ -785,10 +798,10 @@ export default function SquadRegisterModal({
                   ? 'Select an Available Slot Above'
                   : joinMode === 'random'
                   ? paymentMethod === 'razorpay'
-                    ? `⚡ Pay ₹${activeEntryFee.toFixed(2)} via UPI & Auto-Match Slot #${selectedSlot}`
+                    ? `Pay ₹${activeEntryFee.toFixed(2)} via UPI & Auto-Match Slot #${selectedSlot}`
                     : `Pay ₹${activeEntryFee.toFixed(2)} from Wallet & Auto-Match Slot #${selectedSlot}`
                   : paymentMethod === 'razorpay'
-                  ? `⚡ Pay ₹${activeEntryFee.toFixed(2)} via UPI & Join Slot #${selectedSlot}`
+                  ? `Pay ₹${activeEntryFee.toFixed(2)} via UPI & Join Slot #${selectedSlot}`
                   : `Pay ₹${activeEntryFee.toFixed(2)} from Wallet & Join Slot #${selectedSlot}`}
               </button>
             </form>

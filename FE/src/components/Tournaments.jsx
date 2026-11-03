@@ -17,7 +17,13 @@ export default function TournamentsPage() {
       const stored = localStorage.getItem('user');
       if (stored) {
         const u = JSON.parse(stored);
-        return parseFloat(u.total_balance || 0);
+        if (u.total_balance !== undefined && u.total_balance !== null) {
+          return parseFloat(u.total_balance) || 0;
+        }
+        const dep = parseFloat(u.deposit_balance || 0);
+        const win = parseFloat(u.winning_balance || 0);
+        const ref = parseFloat(u.referral_balance || 0);
+        return dep + win + ref;
       }
     } catch (e) {}
     return 0;
@@ -53,13 +59,23 @@ export default function TournamentsPage() {
     const currentToken = localStorage.getItem('token');
     if (!currentToken) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/wallet/me`, {
         headers: { Authorization: `Bearer ${currentToken}` },
       });
-      if (res.data?.status && res.data?.data) {
-        const bal = parseFloat(res.data.data.total_balance || 0);
+      if (res.data?.status && res.data?.data?.balances) {
+        const bal = parseFloat(res.data.data.balances.total || 0);
         setWalletBalance(bal);
-        localStorage.setItem('user', JSON.stringify(res.data.data));
+        try {
+          const stored = localStorage.getItem('user');
+          if (stored) {
+            const u = JSON.parse(stored);
+            u.total_balance = bal.toFixed(2);
+            u.deposit_balance = res.data.data.balances.deposit;
+            u.winning_balance = res.data.data.balances.winning;
+            u.referral_balance = res.data.data.balances.referral;
+            localStorage.setItem('user', JSON.stringify(u));
+          }
+        } catch (e) {}
         window.dispatchEvent(new CustomEvent('wallet_updated', { detail: bal }));
       }
     } catch (err) {

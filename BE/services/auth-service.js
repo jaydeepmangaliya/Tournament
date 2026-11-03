@@ -163,6 +163,10 @@ authService.register = async (body) => {
         code: generatedCode,
         referral_code: generatedCode,
         affiliate_code: userRole === 'affiliate' ? generatedCode : null,
+        deposit_balance: 0,
+        winning_balance: 0,
+        referral_balance: 0,
+        total_balance: "0.00",
       },
     };
   } catch (error) {
@@ -208,6 +212,11 @@ authService.login = async (body) => {
 
     const token = await generateJWT({ id: user.id, email: user.email, role: user.role });
 
+    const depBal = parseFloat(user.deposit_balance || 0);
+    const winBal = parseFloat(user.winning_balance || 0);
+    const refBal = parseFloat(user.referral_balance || 0);
+    const totBal = (depBal + winBal + refBal).toFixed(2);
+
     return {
       status: true,
       token,
@@ -221,6 +230,10 @@ authService.login = async (body) => {
         referral_code: user.referral_code,
         affiliate_code: user.affiliate_code,
         code: user.role === 'affiliate' ? (user.affiliate_code || user.referral_code) : user.referral_code,
+        deposit_balance: depBal,
+        winning_balance: winBal,
+        referral_balance: refBal,
+        total_balance: totBal,
       },
     };
   } catch (error) {

@@ -14,6 +14,8 @@ import AdminLogin from './components/AdminLogin';
 import WinterEffect from './components/WinterEffect';
 import MatchNotificationManager from './components/MatchNotificationManager';
 import Leaderboard from './components/Leaderboard';
+import Terms from './components/Terms';
+import Footer from './components/Footer';
 
 const App = () => {
   const location = useLocation();
@@ -54,7 +56,11 @@ const App = () => {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/payment" element={<Payment />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/fairplay" element={<Terms />} />
+        <Route path="/rules" element={<Terms />} />
       </Routes>
+      {!isAdminRoute && <Footer />}
     </div>
   );
 };
