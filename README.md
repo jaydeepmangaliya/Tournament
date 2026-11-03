@@ -78,6 +78,6 @@ git pull origin main && docker compose up -d --build
 
 ## 🔑 Default Organizer Access
 
-* **Admin Portal URL:** `http://YOUR_SERVER_IP:2000/admin/login`
-* **War Room URL:** `http://YOUR_SERVER_IP:2000/admin`
+* **Admin Portal URL:** `http://YOUR_SERVER_IP/admin/login`
+* **War Room URL:** `http://YOUR_SERVER_IP/admin`
 

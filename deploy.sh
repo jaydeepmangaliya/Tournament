@@ -55,8 +55,8 @@ fi
 
 echo ""
 echo "=========================================================="
-echo "✅ LocalEsport is LIVE and running on port 2000!"
-echo "🌐 Access your platform at: http://YOUR_SERVER_IP:2000"
+echo "✅ LocalEsport is LIVE on standard HTTP (Port 80)!"
+echo "🌐 Access your platform at: http://YOUR_SERVER_IP"
 echo "=========================================================="
 echo ""
 
