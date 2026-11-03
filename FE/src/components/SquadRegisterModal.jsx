@@ -254,7 +254,7 @@ export default function SquadRegisterModal({
         throw new Error(orderRes.data?.message || 'Failed to initialize payment gateway.');
       }
 
-      const rzpKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_517t7p4Y5oWc2q';
+      const rzpKey = orderData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_WyypEVHeheZwJ5';
       if (!window.Razorpay) {
         showToast('Payment gateway is loading. Please try again in a few seconds.', 'error', 'Gateway Error');
         setSubmitting(false);
