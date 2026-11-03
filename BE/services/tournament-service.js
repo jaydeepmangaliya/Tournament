@@ -1379,16 +1379,32 @@ tournamentService.addTeamAdmin = async (tournamentId, body) => {
 tournamentService.ensureOpenLobbyExists = async (gameId, format, matchType, sourceTournament = null, connection = null) => {
   const runner = connection || db.promise();
   try {
-    // Check if there is an active 'open' tournament with available seats
-    const [openTourneys] = await runner.query(`
+    const entryFee = sourceTournament ? parseFloat(sourceTournament.entry_fee) : null;
+    let querySql = `
       SELECT t.id, t.total_teams, COUNT(tt.id) as filled_teams
       FROM tournaments t
       LEFT JOIN tournament_teams tt ON tt.tournament_id = t.id
       WHERE t.game_id = ? AND t.format = ? AND t.status = 'open'
+    `;
+    const params = [gameId, format];
+
+    if (matchType) {
+      querySql += ` AND t.match_type = ?`;
+      params.push(matchType);
+    }
+    if (entryFee !== null && !isNaN(entryFee)) {
+      querySql += ` AND t.entry_fee = ?`;
+      params.push(entryFee);
+    }
+
+    querySql += `
       GROUP BY t.id
       HAVING filled_teams < t.total_teams
       LIMIT 1
-    `, [gameId, format]);
+    `;
+
+    // Check if there is an active 'open' tournament with available seats for this exact tier
+    const [openTourneys] = await runner.query(querySql, params);
 
     // If an open tournament with open slots already exists, no need to duplicate
     if (openTourneys.length > 0) {
@@ -1398,11 +1414,14 @@ tournamentService.ensureOpenLobbyExists = async (gameId, format, matchType, sour
     // Need to spawn fresh match! Get template tournament
     let tmpl = sourceTournament;
     if (!tmpl) {
-      const [rows] = await runner.query(`
-        SELECT * FROM tournaments 
-        WHERE game_id = ? AND format = ?
-        ORDER BY id DESC LIMIT 1
-      `, [gameId, format]);
+      let tmplSql = `SELECT * FROM tournaments WHERE game_id = ? AND format = ?`;
+      const tmplParams = [gameId, format];
+      if (matchType) {
+        tmplSql += ` AND match_type = ?`;
+        tmplParams.push(matchType);
+      }
+      tmplSql += ` ORDER BY id DESC LIMIT 1`;
+      const [rows] = await runner.query(tmplSql, tmplParams);
       if (rows.length > 0) tmpl = rows[0];
     }
 
@@ -1418,7 +1437,7 @@ tournamentService.ensureOpenLobbyExists = async (gameId, format, matchType, sour
       nextTitle = `${nextTitle} #2`;
     }
 
-    // Schedule 2 hours from now
+    // Schedule next match: 2 hours from now
     const nextStartTime = new Date(Date.now() + 3600000 * 2);
 
     const [inserted] = await runner.query(`
