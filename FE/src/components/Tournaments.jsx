@@ -12,7 +12,16 @@ export default function TournamentsPage() {
   const [gameFilter, setGameFilter] = useState('all'); // 'all' | 'free-fire' | 'pubg-mobile'
   const [formatFilter, setFormatFilter] = useState('all'); // 'all' | '1v1' | '2v2' | '4v4' | 'squad' | 'solo'
   const [selectedTournament, setSelectedTournament] = useState(null);
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        return parseFloat(u.total_balance || 0);
+      }
+    } catch (e) {}
+    return 0;
+  });
   const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   const navigate = useNavigate();
@@ -41,18 +50,32 @@ export default function TournamentsPage() {
   };
 
   const fetchWallet = async () => {
-    if (!token) return;
+    const currentToken = localStorage.getItem('token');
+    if (!currentToken) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/wallet/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
       });
-      if (res.data.status) {
-        setWalletBalance(res.data.data.balances.total);
+      if (res.data?.status && res.data?.data) {
+        const bal = parseFloat(res.data.data.total_balance || 0);
+        setWalletBalance(bal);
+        localStorage.setItem('user', JSON.stringify(res.data.data));
+        window.dispatchEvent(new CustomEvent('wallet_updated', { detail: bal }));
       }
     } catch (err) {
       console.error('Wallet fetch error:', err);
     }
   };
+
+  useEffect(() => {
+    const handleWalletUpdated = (e) => {
+      if (e.detail !== undefined && e.detail !== null) {
+        setWalletBalance(parseFloat(e.detail) || 0);
+      }
+    };
+    window.addEventListener('wallet_updated', handleWalletUpdated);
+    return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
+  }, []);
 
   useEffect(() => {
     fetchTournaments();
@@ -334,7 +357,10 @@ export default function TournamentsPage() {
       <WalletModal
         isOpen={walletModalOpen}
         onClose={() => setWalletModalOpen(false)}
-        onBalanceUpdate={(balances) => setWalletBalance(balances.total)}
+        onBalanceUpdate={(balances) => {
+          setWalletBalance(balances.total);
+          window.dispatchEvent(new CustomEvent('wallet_updated', { detail: balances.total }));
+        }}
       />
     </div>
   );

@@ -7,8 +7,24 @@ import BrandLogo from './BrandLogo';
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
-  const [walletBalance, setWalletBalance] = useState(null);
-  const [user, setUser] = useState(null);
+  const [walletBalance, setWalletBalance] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        return u.total_balance !== undefined ? parseFloat(u.total_balance) : null;
+      }
+    } catch (e) {}
+    return null;
+  });
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [copiedCode, setCopiedCode] = useState(false);
 
   const navigate = useNavigate();
@@ -16,19 +32,22 @@ const Header = () => {
   const token = localStorage.getItem('token');
 
   const fetchProfile = async () => {
-    if (!token) {
+    const currentToken = localStorage.getItem('token');
+    if (!currentToken) {
       setUser(null);
       setWalletBalance(null);
       return;
     }
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${currentToken}` },
       });
       if (res.data.status) {
         setUser(res.data.data);
-        setWalletBalance(res.data.data.total_balance);
+        const bal = parseFloat(res.data.data.total_balance || 0);
+        setWalletBalance(bal);
         localStorage.setItem('user', JSON.stringify(res.data.data));
+        window.dispatchEvent(new CustomEvent('wallet_updated', { detail: bal }));
       }
     } catch (err) {
       if (err.response?.status === 401) {
@@ -40,6 +59,16 @@ const Header = () => {
   useEffect(() => {
     fetchProfile();
   }, [location.pathname, token]);
+
+  useEffect(() => {
+    const handleWalletUpdated = (e) => {
+      if (e.detail !== undefined && e.detail !== null) {
+        setWalletBalance(parseFloat(e.detail));
+      }
+    };
+    window.addEventListener('wallet_updated', handleWalletUpdated);
+    return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -314,7 +343,10 @@ const Header = () => {
       <WalletModal
         isOpen={walletModalOpen}
         onClose={() => setWalletModalOpen(false)}
-        onBalanceUpdate={(balances) => setWalletBalance(balances.total)}
+        onBalanceUpdate={(balances) => {
+          setWalletBalance(balances.total);
+          window.dispatchEvent(new CustomEvent('wallet_updated', { detail: balances.total }));
+        }}
       />
     </>
   );

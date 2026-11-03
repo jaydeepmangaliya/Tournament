@@ -37,6 +37,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
         if (onBalanceUpdate) {
           onBalanceUpdate(res.data.data.balances);
         }
+        window.dispatchEvent(new CustomEvent('wallet_updated', { detail: res.data.data.balances.total }));
       }
     } catch (err) {
       console.error('Wallet fetch error:', err);
