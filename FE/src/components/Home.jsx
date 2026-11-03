@@ -8,6 +8,7 @@ import EarningsCalculator from './EarningsCalculator';
 import LiveActivityTicker from './LiveActivityTicker';
 import GameplayVideoHero from './GameplayVideoHero';
 import CinematicYouTube from './CinematicYouTube';
+import BrandLogo from './BrandLogo';
 
 // 1. Interactive Three.js Vanta 3D Particle Background
 const ParticleBackground = () => {
@@ -1095,8 +1096,8 @@ export default function Home() {
       <footer className="py-12 px-4 sm:px-6 lg:px-8 bg-[#040406] text-xs text-zinc-500">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-6">
           <div className="space-y-1 text-center sm:text-left">
-            <span className="font-black text-white text-base">GAME<span className="text-silver">ARENA</span></span>
-            <p className="text-[11px] text-zinc-500">Competitive Tournament Infrastructure for Free Fire & PUBG Mobile.</p>
+            <BrandLogo size="sm" />
+            <p className="text-[11px] text-zinc-500">Competitive Tournament Infrastructure for Free Fire &amp; PUBG Mobile.</p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-6 text-zinc-400 font-semibold text-xs">

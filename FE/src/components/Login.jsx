@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import BrandLogo from './BrandLogo';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -154,17 +155,12 @@ const Login = () => {
           className="bg-[#0c0c10] border border-zinc-800 rounded-3xl p-4 sm:p-8 shadow-2xl relative"
         >
           {/* Header */}
-          <div className="text-center mb-6">
-            <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-black text-white">
-              GAME<span className="text-silver">ARENA</span>
-            </h1>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Local Esports Tournament & Earnings Platform
+          <div className="flex flex-col items-center text-center mb-6">
+            <Link to="/" className="mb-2 transition hover:opacity-90">
+              <BrandLogo size="lg" />
+            </Link>
+            <p className="text-xs text-zinc-400 mt-1">
+              Local Esports Tournament &amp; Earnings Platform
             </p>
           </div>
 
