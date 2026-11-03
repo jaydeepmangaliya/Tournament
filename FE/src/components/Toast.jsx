@@ -126,3 +126,4 @@ export default function Toast({ toast, onClose, duration = 4500 }) {
     </AnimatePresence>
   );
 }
+

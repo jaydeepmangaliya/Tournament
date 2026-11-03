@@ -48,7 +48,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
   useEffect(() => {
     if (isOpen) {
       fetchWallet();
-      setMessage({ type: '', text: '' });
+      setToast(null);
     }
   }, [isOpen]);
 
