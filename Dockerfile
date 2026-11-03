@@ -41,3 +41,4 @@ EXPOSE 2000
 
 # Start production server
 CMD ["node", "index.js"]
+
