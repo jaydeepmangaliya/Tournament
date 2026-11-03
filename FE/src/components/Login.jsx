@@ -55,7 +55,7 @@ const Login = () => {
     }
     try {
       setVerifying(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/verify-code/${code.trim().toUpperCase()}`);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/auth/verify-code/${code.trim().toUpperCase()}`);
       if (res.data.status) {
         setVerifiedInfo(res.data);
       } else {
@@ -106,7 +106,7 @@ const Login = () => {
         ? { email, password, name, phone, role, referralCode }
         : { email, password };
 
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}${endpoint}`, payload);
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || ""}${endpoint}`, payload);
       const { token, message, user } = response.data;
 
       if (token) {

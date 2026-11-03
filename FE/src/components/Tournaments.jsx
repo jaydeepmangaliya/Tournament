@@ -40,7 +40,7 @@ export default function TournamentsPage() {
       if (gameFilter !== 'all') params.gameSlug = gameFilter;
       if (formatFilter !== 'all') params.format = formatFilter;
 
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/tournaments`, {
         params,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -59,7 +59,7 @@ export default function TournamentsPage() {
     const currentToken = localStorage.getItem('token');
     if (!currentToken) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/wallet/me`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/wallet/me`, {
         headers: { Authorization: `Bearer ${currentToken}` },
       });
       if (res.data?.status && res.data?.data?.balances) {

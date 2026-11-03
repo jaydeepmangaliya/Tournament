@@ -81,10 +81,10 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     try {
       setLoading(true);
       const [walletRes, profileRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/wallet/me`, {
+        axios.get(`${import.meta.env.VITE_API_URL || ""}/api/wallet/me`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
+        axios.get(`${import.meta.env.VITE_API_URL || ""}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -133,7 +133,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     setActionLoading(true);
     try {
       const orderRes = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/payment/create-order`,
+        `${import.meta.env.VITE_API_URL || ""}/api/payment/create-order`,
         { amount: amt, tournamentId: 0 },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -190,7 +190,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
         handler: async (response) => {
           try {
             const verifyRes = await axios.post(
-              `${import.meta.env.VITE_API_URL}/api/payment/verify`,
+              `${import.meta.env.VITE_API_URL || ""}/api/payment/verify`,
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -256,7 +256,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
       };
 
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/wallet/withdraw`,
+        `${import.meta.env.VITE_API_URL || ""}/api/wallet/withdraw`,
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -297,7 +297,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
     setKycSubmitting(true);
     try {
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/kyc`,
+        `${import.meta.env.VITE_API_URL || ""}/api/auth/kyc`,
         kycForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );

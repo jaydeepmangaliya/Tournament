@@ -45,7 +45,7 @@ const Header = () => {
       return;
     }
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/auth/me`, {
         headers: { Authorization: `Bearer ${currentToken}` },
       });
       if (res.data.status) {

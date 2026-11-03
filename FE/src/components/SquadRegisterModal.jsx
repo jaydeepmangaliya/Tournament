@@ -91,7 +91,7 @@ export default function SquadRegisterModal({
     const fetchLiveRoster = async () => {
       try {
         setLoadingDetails(true);
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments/${tournament.id}`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/tournaments/${tournament.id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.data.status && isMounted) {
@@ -207,7 +207,7 @@ export default function SquadRegisterModal({
         };
 
         const res = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/tournaments/${tournament.id}/join`,
+          `${import.meta.env.VITE_API_URL || ""}/api/tournaments/${tournament.id}/join`,
           payload,
           {
             headers: {
@@ -240,7 +240,7 @@ export default function SquadRegisterModal({
     setSubmitting(true);
     try {
       const orderRes = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/payment/create-order`,
+        `${import.meta.env.VITE_API_URL || ""}/api/payment/create-order`,
         {
           amount: activeEntryFee,
           tournamentId: tournament.id,
@@ -304,7 +304,7 @@ export default function SquadRegisterModal({
         handler: async function (paymentResponse) {
           try {
             const verifyRes = await axios.post(
-              `${import.meta.env.VITE_API_URL}/api/payment/verify-and-join`,
+              `${import.meta.env.VITE_API_URL || ""}/api/payment/verify-and-join`,
               {
                 razorpay_order_id: paymentResponse.razorpay_order_id,
                 razorpay_payment_id: paymentResponse.razorpay_payment_id,

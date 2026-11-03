@@ -12,7 +12,7 @@ export default function ReferAndEarn() {
     const fetchReferralData = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/referral/dashboard`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/referral/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.data.status) {

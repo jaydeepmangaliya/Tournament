@@ -14,7 +14,7 @@ export default function Leaderboard() {
       try {
         setLoading(true);
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/tournaments/leaderboard?period=${period}`
+          `${import.meta.env.VITE_API_URL || ""}/api/tournaments/leaderboard?period=${period}`
         );
         if (res.data.status && isMounted) {
           setLeaders(res.data.data || []);

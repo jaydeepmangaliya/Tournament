@@ -59,7 +59,7 @@ export default function PlayerMatches() {
 
     try {
       if (!isBackgroundPoll) setLoading(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments/my-matches`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/tournaments/my-matches`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

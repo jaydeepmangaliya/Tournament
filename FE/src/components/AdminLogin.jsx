@@ -33,7 +33,7 @@ export default function AdminLogin() {
 
     try {
       setLoading(true);
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL || ""}/api/auth/login`, {
         email: email.trim(),
         password: password.trim(),
       });

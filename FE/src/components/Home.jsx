@@ -84,7 +84,7 @@ export default function Home() {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments`);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/tournaments`);
         if (res.data.status && res.data.data.length > 0) {
           setFeaturedTournaments(res.data.data.slice(0, 3));
         }

@@ -10,6 +10,7 @@ RUN npm install
 
 # Copy frontend source and build to ../BE/build
 COPY FE/ ./
+ENV VITE_API_URL=""
 RUN npm run build
 
 # ==============================================================================

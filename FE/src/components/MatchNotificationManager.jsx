@@ -158,7 +158,7 @@ export default function MatchNotificationManager() {
     const checkMatches = async () => {
       try {
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/tournaments/my-matches`,
+          `${import.meta.env.VITE_API_URL || ""}/api/tournaments/my-matches`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 

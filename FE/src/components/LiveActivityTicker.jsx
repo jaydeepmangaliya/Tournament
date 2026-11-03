@@ -17,7 +17,7 @@ export default function LiveActivityTicker() {
     let isMounted = true;
     const fetchTicker = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tournaments/live-ticker`);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/tournaments/live-ticker`);
         if (res.data.status && isMounted) {
           setItems(res.data.data || []);
         }

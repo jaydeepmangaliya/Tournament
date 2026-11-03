@@ -23,7 +23,7 @@ export default function AffiliateDashboard() {
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/affiliate/dashboard`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/affiliate/dashboard`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data.status) {
@@ -68,7 +68,7 @@ export default function AffiliateDashboard() {
       };
 
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/wallet/withdraw`,
+        `${import.meta.env.VITE_API_URL || ""}/api/wallet/withdraw`,
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -201,10 +201,10 @@ export default function AdminDashboard() {
       const headers = { Authorization: `Bearer ${adminToken}` };
 
       const [tourneysRes, analyticsRes, withdrawalsRes, usersRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/admin/tournaments`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/admin/analytics`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/admin/withdrawals`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/admin/users`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL || ""}/api/admin/analytics`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL || ""}/api/admin/withdrawals`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL || ""}/api/admin/users`, { headers }),
       ]);
 
       if (tourneysRes.data.status) {
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
     try {
       setSubmittingCredId(tournamentId);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${tournamentId}/room-credentials`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${tournamentId}/room-credentials`,
         { roomId: cred.roomId.trim(), roomPassword: cred.roomPassword.trim() },
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
@@ -353,7 +353,7 @@ export default function AdminDashboard() {
     try {
       const headers = { Authorization: `Bearer ${adminToken}` };
       const res = await axios.delete(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${tournamentId}/teams/${team.id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${tournamentId}/teams/${team.id}`,
         { headers }
       );
       if (res.data.status) {
@@ -382,7 +382,7 @@ export default function AdminDashboard() {
     try {
       const headers = { Authorization: `Bearer ${adminToken}` };
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${t.id}/cancel`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${t.id}/cancel`,
         { reason: 'Cancelled by Admin due to unfilled slots / referee decision' },
         { headers }
       );
@@ -406,7 +406,7 @@ export default function AdminDashboard() {
     try {
       const headers = { Authorization: `Bearer ${adminToken}` };
       const res = await axios.delete(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${t.id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${t.id}`,
         { headers }
       );
       if (res.data.status) {
@@ -454,7 +454,7 @@ export default function AdminDashboard() {
       setSubmitting(true);
       const headers = { Authorization: `Bearer ${adminToken}` };
       const res = await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${editingTournament.id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${editingTournament.id}`,
         editTourneyForm,
         { headers }
       );
@@ -522,7 +522,7 @@ export default function AdminDashboard() {
       };
 
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${addingTeamTournament.id}/add-team`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${addingTeamTournament.id}/add-team`,
         payload,
         { headers }
       );
@@ -602,7 +602,7 @@ export default function AdminDashboard() {
     try {
       setSubmitting(true);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/${match.id}/results`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${match.id}/results`,
         { winners, killBounties: killList },
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
@@ -627,7 +627,7 @@ export default function AdminDashboard() {
     try {
       setSubmitting(true);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/withdrawals/${withdrawalId}/approve`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/withdrawals/${withdrawalId}/approve`,
         { utrNumber: utr, adminRemark: 'UPI Transfer Completed' },
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
@@ -651,7 +651,7 @@ export default function AdminDashboard() {
     try {
       setSubmitting(true);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/withdrawals/${withdrawalId}/reject`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/withdrawals/${withdrawalId}/reject`,
         { reason },
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
@@ -792,7 +792,7 @@ export default function AdminDashboard() {
     try {
       setSubmitting(true);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/tournaments/create`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/create`,
         createForm,
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
@@ -820,7 +820,7 @@ export default function AdminDashboard() {
 
     try {
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/admin/users/${targetUser.id}/ban`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${targetUser.id}/ban`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
@@ -844,7 +844,7 @@ export default function AdminDashboard() {
     try {
       const headers = { Authorization: `Bearer ${adminToken}` };
       const res = await axios.delete(
-        `${import.meta.env.VITE_API_URL}/api/admin/users/${targetUser.id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${targetUser.id}`,
         { headers }
       );
       if (res.data.status) {
@@ -881,7 +881,7 @@ export default function AdminDashboard() {
       setSubmitting(true);
       const headers = { Authorization: `Bearer ${adminToken}` };
       const res = await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/admin/users/${editingUser.id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${editingUser.id}`,
         editFormData,
         { headers }
       );
