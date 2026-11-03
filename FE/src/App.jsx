@@ -13,6 +13,7 @@ import AdminDashboard from './components/AdminDashboard';
 import AdminLogin from './components/AdminLogin';
 import WinterEffect from './components/WinterEffect';
 import MatchNotificationManager from './components/MatchNotificationManager';
+import Leaderboard from './components/Leaderboard';
 
 const App = () => {
   const location = useLocation();
@@ -45,6 +46,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/tournaments" element={<Tournaments />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/yourmatches" element={<PlayerMatches />} />
         <Route path="/login" element={<Login />} />
         <Route path="/affiliate" element={<AffiliateDashboard />} />

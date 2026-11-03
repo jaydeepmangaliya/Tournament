@@ -4,6 +4,7 @@ const {
   joinTournament,
   getRoomCredentials,
   getMyMatches,
+  getLeaderboard,
 } = require("../controllers/tournament-controller");
 const { verifyToken } = require("../middleware/userAuth");
 
@@ -24,6 +25,7 @@ module.exports = (app) => {
   const router = require("express").Router();
 
   router.get("/", optionalAuth, getTournaments);
+  router.get("/leaderboard", optionalAuth, getLeaderboard);
   router.get("/my-matches", verifyToken, getMyMatches);
   router.get("/:id", optionalAuth, getTournamentById);
   router.post("/:id/join", verifyToken, joinTournament);

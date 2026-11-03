@@ -75,3 +75,12 @@ exports.getMyMatches = async (req, res) => {
   }
 };
 
+exports.getLeaderboard = async (req, res) => {
+  try {
+    const result = await tournamentService.getLeaderboard(req.query);
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+

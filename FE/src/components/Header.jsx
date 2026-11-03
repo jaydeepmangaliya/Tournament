@@ -67,16 +67,19 @@ const Header = () => {
     navLinks = [
       { label: 'Home', path: '/' },
       { label: 'Tournaments', path: '/tournaments' },
+      { label: 'Leaderboard', path: '/leaderboard' },
     ];
   } else if (isAffiliate) {
     navLinks = [
       { label: 'Partner Dashboard', path: '/affiliate' },
       { label: 'All Tournaments', path: '/tournaments' },
+      { label: 'Leaderboard', path: '/leaderboard' },
     ];
   } else {
     // Player / regular user
     navLinks = [
       { label: 'Tournaments', path: '/tournaments' },
+      { label: 'Leaderboard', path: '/leaderboard' },
       { label: 'My Matches', path: '/yourmatches' },
       { label: 'Refer & Earn', path: '/refer-and-earn' },
     ];
