@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import BrandLogo from './BrandLogo';
+import Toast from './Toast';
+import ConfirmModal from './ConfirmModal';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -15,6 +17,26 @@ export default function AdminDashboard() {
   // 'full' (Need Room ID) | 'open' (Joining) | 'live' (Playing) | 'completed' (Finished) | 'withdrawals' | 'players' | 'create'
   const [activeTab, setActiveTab] = useState('full');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // In-app notifications & confirmation modal (replaces native browser popups)
+  const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null,
+    loading: false,
+    promptInput: false,
+    promptPlaceholder: '',
+    promptValue: '',
+  });
+
+  const showToast = (msg, type = 'info', title = null) => {
+    setToast({ message: msg, type, title });
+  };
 
   // Data states
   const [tournaments, setTournaments] = useState([]);
@@ -244,7 +266,7 @@ export default function AdminDashboard() {
   const handleStartMatch = async (tournamentId) => {
     const cred = credentials[tournamentId];
     if (!cred?.roomId?.trim() || !cred?.roomPassword?.trim()) {
-      alert('Please enter both Custom Room ID and Password before starting the match.');
+      showToast('Please enter both Custom Room ID and Password before starting the match.', 'warning', 'Credentials Required');
       return;
     }
 
@@ -257,13 +279,12 @@ export default function AdminDashboard() {
       );
 
       if (res.data.status) {
-        setMessage(`Match #${tournamentId} started! Room ID & Password sent to registered players. Moved to Live Matches.`);
-        setTimeout(() => setMessage(''), 5000);
+        showToast(`Match #${tournamentId} started! Room ID & Password sent to registered players.`, 'success', 'Match Live');
         setActiveTab('live');
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update credentials.');
+      showToast(err.response?.data?.message || 'Failed to update credentials.', 'error', 'Update Error');
     } finally {
       setSubmittingCredId(null);
     }
@@ -276,7 +297,7 @@ export default function AdminDashboard() {
     const roomPass = cred?.roomPassword?.trim() || t.room_password;
 
     if (!roomId || !roomPass) {
-      alert('Please enter both Custom Room ID and Password before broadcasting to WhatsApp.');
+      showToast('Please enter both Custom Room ID and Password before broadcasting to WhatsApp.', 'warning', 'Missing Details');
       return;
     }
 
@@ -303,7 +324,7 @@ export default function AdminDashboard() {
     const roomPass = cred?.roomPassword?.trim() || t.room_password;
 
     if (!roomId || !roomPass) {
-      alert('Please enter both Custom Room ID and Password first.');
+      showToast('Please enter both Custom Room ID and Password first.', 'warning', 'Missing Details');
       return;
     }
 
@@ -320,8 +341,7 @@ export default function AdminDashboard() {
 👉 View your slot & match: ${matchUrl}`;
 
     navigator.clipboard.writeText(message);
-    setMessage(`WhatsApp announcement template for Match #${t.id} copied to clipboard!`);
-    setTimeout(() => setMessage(''), 4000);
+    showToast(`WhatsApp announcement template for Match #${t.id} copied to clipboard!`, 'success', 'Template Copied');
   };
 
   // Copy all player UIDs to clipboard for in-game Free Fire / BGMI room invites
@@ -334,89 +354,108 @@ export default function AdminDashboard() {
     });
 
     if (uids.length === 0) {
-      alert('No participants registered in this tournament yet.');
+      showToast('No participants registered in this tournament yet.', 'warning', 'Empty Roster');
       return;
     }
 
     navigator.clipboard.writeText(uids.join('\n'));
     setCopiedUIDsId(tournament.id);
+    showToast('All player UIDs copied to clipboard!', 'success', 'Copied');
     setTimeout(() => setCopiedUIDsId(null), 2500);
   };
 
   // Kick team from tournament slot with entry fee refund
-  const handleRemoveTeam = async (tournamentId, team) => {
-    const confirmRemove = window.confirm(
-      `Remove team "${team.team_name}" from Slot #${team.slot_number}?\n\nTheir entry fee will be refunded back to the player's wallet, and the slot will be reopened.`
-    );
-    if (!confirmRemove) return;
-
-    try {
-      const headers = { Authorization: `Bearer ${adminToken}` };
-      const res = await axios.delete(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${tournamentId}/teams/${team.id}`,
-        { headers }
-      );
-      if (res.data.status) {
-        setMessage(res.data.message || `Team removed and refunded.`);
-        setTimeout(() => setMessage(''), 4500);
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to remove team.');
-    }
+  const handleRemoveTeam = (tournamentId, team) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remove Team from Slot',
+      message: `Remove team "${team.team_name}" from Slot #${team.slot_number}?\n\nTheir entry fee will be immediately refunded back to the player's wallet balance, and Slot #${team.slot_number} will be reopened.`,
+      confirmText: 'Remove & Refund',
+      cancelText: 'Keep Team',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const headers = { Authorization: `Bearer ${adminToken}` };
+          const res = await axios.delete(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${tournamentId}/teams/${team.id}`,
+            { headers }
+          );
+          if (res.data.status) {
+            showToast(res.data.message || `Team removed and refunded.`, 'success', 'Team Removed');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to remove team.', 'error', 'Error');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   // Cancel tournament and immediately refund players into their WITHDRAWABLE balance
-  const handleCancelTournament = async (t) => {
+  const handleCancelTournament = (t) => {
     const teamsCount = t.teams?.length || t.filled_teams || 0;
     const totalRefund = (teamsCount * parseFloat(t.entry_fee || 0)).toFixed(2);
-    const confirmCancel = window.confirm(
-      `CANCEL MATCH #${t.id} ("${t.title}")?\n\n` +
-      `• Registered Teams/Players: ${teamsCount} / ${t.total_teams}\n` +
-      `• Total Refund Amount: ₹${totalRefund}\n\n` +
-      `100% of the entry fee will be immediately refunded into each player's WITHDRAWABLE Wallet Balance (allowing them to withdraw to UPI or register for another match).\n\n` +
-      `Do you want to proceed with cancelling this match?`
-    );
-    if (!confirmCancel) return;
 
-    try {
-      const headers = { Authorization: `Bearer ${adminToken}` };
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${t.id}/cancel`,
-        { reason: 'Cancelled by Admin due to unfilled slots / referee decision' },
-        { headers }
-      );
-      if (res.data.status) {
-        setMessage(res.data.message || `Match #${t.id} cancelled and players refunded to withdrawable balance.`);
-        setTimeout(() => setMessage(''), 5500);
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to cancel tournament.');
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: `Cancel Match #${t.id}?`,
+      message: `Match: "${t.title}"\n• Registered Participants: ${teamsCount} / ${t.total_teams}\n• Total Refund Amount: ₹${totalRefund}\n\n100% of entry fees will be refunded into each player's WITHDRAWABLE Wallet Balance immediately.`,
+      confirmText: 'Cancel Match & Refund All',
+      cancelText: 'Keep Match Active',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const headers = { Authorization: `Bearer ${adminToken}` };
+          const res = await axios.post(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${t.id}/cancel`,
+            { reason: 'Cancelled by Admin due to unfilled slots / referee decision' },
+            { headers }
+          );
+          if (res.data.status) {
+            showToast(res.data.message || `Match #${t.id} cancelled and players refunded.`, 'success', 'Match Cancelled');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to cancel tournament.', 'error', 'Cancellation Failed');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   // Delete entire tournament lobby
-  const handleDeleteTournament = async (t) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to DELETE Tournament #${t.id} ("${t.title}")?\n\nAny registered players will have their entry fees refunded immediately to their wallets.`
-    );
-    if (!confirmDelete) return;
-
-    try {
-      const headers = { Authorization: `Bearer ${adminToken}` };
-      const res = await axios.delete(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${t.id}`,
-        { headers }
-      );
-      if (res.data.status) {
-        setMessage(res.data.message || `Tournament #${t.id} deleted successfully.`);
-        setTimeout(() => setMessage(''), 4500);
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete tournament.');
-    }
+  const handleDeleteTournament = (t) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Delete Tournament #${t.id}?`,
+      message: `Permanently delete "${t.title}"?\n\nAny registered players will have their entry fees refunded immediately to their wallets. This cannot be undone.`,
+      confirmText: 'Delete Permanently',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const headers = { Authorization: `Bearer ${adminToken}` };
+          const res = await axios.delete(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${t.id}`,
+            { headers }
+          );
+          if (res.data.status) {
+            showToast(res.data.message || `Tournament #${t.id} deleted.`, 'success', 'Deleted');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to delete tournament.', 'error', 'Delete Failed');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   // OPEN EDIT TOURNAMENT MODAL
@@ -460,13 +499,12 @@ export default function AdminDashboard() {
       );
 
       if (res.data.status) {
-        setMessage(`Tournament #${editingTournament.id} updated successfully!`);
-        setTimeout(() => setMessage(''), 4500);
+        showToast(`Tournament #${editingTournament.id} updated successfully!`, 'success', 'Tournament Updated');
         setEditingTournament(null);
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update tournament.');
+      showToast(err.response?.data?.message || 'Failed to update tournament.', 'error', 'Update Error');
     } finally {
       setSubmitting(false);
     }
@@ -500,7 +538,7 @@ export default function AdminDashboard() {
     if (!addingTeamTournament) return;
 
     if (!addTeamForm.team_name || !addTeamForm.in_game_name) {
-      alert('Please enter Team name and In-Game Name (IGN).');
+      showToast('Please enter Team name and In-Game Name (IGN).', 'warning', 'Missing Details');
       return;
     }
 
@@ -528,13 +566,12 @@ export default function AdminDashboard() {
       );
 
       if (res.data.status) {
-        setMessage(`Player added to Slot #${addTeamForm.slot_number} successfully!`);
-        setTimeout(() => setMessage(''), 4500);
+        showToast(`Player added to Slot #${addTeamForm.slot_number} successfully!`, 'success', 'Player Added');
         setAddingTeamTournament(null);
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to add player to slot.');
+      showToast(err.response?.data?.message || 'Failed to add player to slot.', 'error', 'Error');
     } finally {
       setSubmitting(false);
     }
@@ -561,7 +598,7 @@ export default function AdminDashboard() {
 
     if (match.match_type === 'clash') {
       if (!clashWinnerTeamId) {
-        alert('Please select the winning team.');
+        showToast('Please select the winning team.', 'warning', 'Winner Selection Required');
         return;
       }
       winners.push({
@@ -571,7 +608,7 @@ export default function AdminDashboard() {
       });
     } else {
       if (!brRank1TeamId) {
-        alert('Please select the 1st Place (Booyah) winner.');
+        showToast('Please select the 1st Place (Booyah) winner.', 'warning', 'Winner Selection Required');
         return;
       }
       winners.push({ teamId: brRank1TeamId, rank: 1, prize: match.first_prize });
@@ -594,31 +631,35 @@ export default function AdminDashboard() {
       });
     }
 
-    const confirmPayout = window.confirm(
-      `Confirm prize distribution for Match #${match.id}?\n\nPrize money will be transferred directly to winner wallets and the match will be completed.`
-    );
-    if (!confirmPayout) return;
+    setConfirmModal({
+      isOpen: true,
+      title: `Distribute Prizes: Match #${match.id}`,
+      message: `Confirm prize distribution for "${match.title}"?\n\nPrize money will be transferred directly to winner wallets and the match will be completed.`,
+      confirmText: 'Pay Winners & Complete',
+      cancelText: 'Cancel',
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const res = await axios.post(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${match.id}/results`,
+            { winners, killBounties: killList },
+            { headers: { Authorization: `Bearer ${adminToken}` } }
+          );
 
-    try {
-      setSubmitting(true);
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/tournaments/${match.id}/results`,
-        { winners, killBounties: killList },
-        { headers: { Authorization: `Bearer ${adminToken}` } }
-      );
-
-      if (res.data.status) {
-        setMessage(`Match #${match.id} finalized! Prizes transferred to winner wallets. Match moved to Completed.`);
-        setTimeout(() => setMessage(''), 5000);
-        setDeclaringWinnerMatch(null);
-        setActiveTab('completed');
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to distribute prizes.');
-    } finally {
-      setSubmitting(false);
-    }
+          if (res.data.status) {
+            showToast(`Match #${match.id} finalized! Prizes transferred to winner wallets. Match moved to Completed.`, 'success', 'Prizes Distributed');
+            setDeclaringWinnerMatch(null);
+            setActiveTab('completed');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to distribute prizes.', 'error', 'Payout Failed');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   // Withdrawals Approval & Rejection
@@ -633,39 +674,51 @@ export default function AdminDashboard() {
       );
 
       if (res.data.status) {
-        setMessage(`Withdrawal #${withdrawalId} confirmed and approved.`);
-        setTimeout(() => setMessage(''), 4000);
+        showToast(`Withdrawal #${withdrawalId} confirmed and approved.`, 'success', 'Payout Approved');
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to approve withdrawal.');
+      showToast(err.response?.data?.message || 'Failed to approve withdrawal.', 'error', 'Approval Error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleRejectWithdrawal = async (withdrawalId) => {
-    const reason = prompt('Enter rejection reason (money will be refunded to user wallet):', 'Incorrect UPI ID / Inactive VPA');
-    if (!reason) return;
+  const handleRejectWithdrawal = (withdrawalId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Reject Withdrawal #${withdrawalId}?`,
+      message: `The withdrawal amount will be refunded directly back into the user's wallet balance. Enter rejection reason:`,
+      confirmText: 'Reject & Refund',
+      cancelText: 'Cancel',
+      type: 'danger',
+      promptInput: true,
+      promptPlaceholder: 'Rejection reason (e.g. Incorrect UPI ID)',
+      promptValue: 'Incorrect UPI ID / Inactive VPA',
+      onPromptChange: (val) => {
+        setConfirmModal((prev) => ({ ...prev, promptValue: val }));
+      },
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const reasonToSubmit = confirmModal.promptValue?.trim() || 'Incorrect UPI ID / Inactive VPA';
+          const res = await axios.post(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/withdrawals/${withdrawalId}/reject`,
+            { reason: reasonToSubmit },
+            { headers: { Authorization: `Bearer ${adminToken}` } }
+          );
 
-    try {
-      setSubmitting(true);
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/withdrawals/${withdrawalId}/reject`,
-        { reason },
-        { headers: { Authorization: `Bearer ${adminToken}` } }
-      );
-
-      if (res.data.status) {
-        setMessage(`Withdrawal #${withdrawalId} rejected & refunded.`);
-        setTimeout(() => setMessage(''), 4000);
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to reject withdrawal.');
-    } finally {
-      setSubmitting(false);
-    }
+          if (res.data.status) {
+            showToast(`Withdrawal #${withdrawalId} rejected & refunded.`, 'info', 'Withdrawal Rejected');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to reject withdrawal.', 'error', 'Rejection Error');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   const copyUPI = (upiId, id) => {
@@ -785,7 +838,7 @@ export default function AdminDashboard() {
   const handleCreateTournament = async (e) => {
     e.preventDefault();
     if (!createForm.title || !createForm.matchStartAt) {
-      alert('Please fill in title and match start time.');
+      showToast('Please fill in title and match start time.', 'warning', 'Incomplete Form');
       return;
     }
 
@@ -798,63 +851,78 @@ export default function AdminDashboard() {
       );
 
       if (res.data.status) {
-        setMessage(`Tournament created successfully!`);
-        setTimeout(() => setMessage(''), 4500);
+        showToast('Tournament created successfully!', 'success', 'Tournament Published');
         setActiveTab('open');
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create tournament.');
+      showToast(err.response?.data?.message || 'Failed to create tournament.', 'error', 'Creation Error');
     } finally {
       setSubmitting(false);
     }
   };
 
   // User Management
-  const handleToggleBan = async (targetUser) => {
+  const handleToggleBan = (targetUser) => {
     const newStatus = targetUser.status === 'banned' ? 'active' : 'banned';
-    const confirmAction = window.confirm(
-      `Are you sure you want to ${newStatus.toUpperCase()} user ${targetUser.name} (#${targetUser.id})?`
-    );
-    if (!confirmAction) return;
+    const isBanning = newStatus === 'banned';
 
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${targetUser.id}/ban`,
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${adminToken}` } }
-      );
+    setConfirmModal({
+      isOpen: true,
+      title: `${isBanning ? 'Ban' : 'Unban'} User #${targetUser.id}?`,
+      message: `Are you sure you want to ${newStatus.toUpperCase()} user "${targetUser.name}" (${targetUser.email})?`,
+      confirmText: isBanning ? 'Ban User' : 'Restore User',
+      cancelText: 'Cancel',
+      type: isBanning ? 'danger' : 'info',
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const res = await axios.post(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${targetUser.id}/ban`,
+            { status: newStatus },
+            { headers: { Authorization: `Bearer ${adminToken}` } }
+          );
 
-      if (res.data.status) {
-        setMessage(res.data.message);
-        setTimeout(() => setMessage(''), 4000);
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update ban status.');
-    }
+          if (res.data.status) {
+            showToast(res.data.message || `User status updated to ${newStatus}.`, 'success', 'User Updated');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to update ban status.', 'error', 'Update Error');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
-  const handleDeleteUser = async (targetUser) => {
-    const confirmDelete = window.confirm(
-      `DANGER: Are you sure you want to completely DELETE user "${targetUser.name}" (ID #${targetUser.id})?\n\nThis will remove their profile, wallet, registrations, and transactions permanently.`
-    );
-    if (!confirmDelete) return;
-
-    try {
-      const headers = { Authorization: `Bearer ${adminToken}` };
-      const res = await axios.delete(
-        `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${targetUser.id}`,
-        { headers }
-      );
-      if (res.data.status) {
-        setMessage(res.data.message || `User #${targetUser.id} deleted successfully.`);
-        setTimeout(() => setMessage(''), 4500);
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete user.');
-    }
+  const handleDeleteUser = (targetUser) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Delete User #${targetUser.id}?`,
+      message: `Permanently delete user "${targetUser.name}" (${targetUser.email})?\n\nThis will remove their profile, wallet, registrations, and transactions permanently. This action cannot be undone.`,
+      confirmText: 'Delete Permanently',
+      cancelText: 'Keep User',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          setConfirmModal((prev) => ({ ...prev, loading: true }));
+          const headers = { Authorization: `Bearer ${adminToken}` };
+          const res = await axios.delete(
+            `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${targetUser.id}`,
+            { headers }
+          );
+          if (res.data.status) {
+            showToast(res.data.message || `User #${targetUser.id} deleted.`, 'success', 'User Deleted');
+            loadAllAdminData();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.message || 'Failed to delete user.', 'error', 'Delete Failed');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   const handleOpenEditUser = (u) => {
@@ -886,13 +954,12 @@ export default function AdminDashboard() {
         { headers }
       );
       if (res.data.status) {
-        setMessage(`User #${editingUser.id} updated successfully!`);
-        setTimeout(() => setMessage(''), 4500);
+        showToast(`User #${editingUser.id} updated successfully!`, 'success', 'Profile Updated');
         setEditingUser(null);
         loadAllAdminData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update user.');
+      showToast(err.response?.data?.message || 'Failed to update user.', 'error', 'Update Error');
     } finally {
       setSubmitting(false);
     }
@@ -1109,6 +1176,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#050507] text-[#e4e4e7] antialiased flex flex-col lg:flex-row">
+      <Toast toast={toast} onClose={() => setToast(null)} />
+      <ConfirmModal {...confirmModal} onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))} />
       {/* 1. MOBILE TOP NAVIGATION BAR (Visible only on < lg) */}
       <div className="lg:hidden sticky top-0 z-40 bg-[#08080c]/95 backdrop-blur-md border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">

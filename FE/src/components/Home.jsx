@@ -1086,29 +1086,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* 12. CLEAN ESPORTS FOOTER */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 bg-[#040406] text-xs text-zinc-500">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-6">
-          <div className="space-y-1 text-center sm:text-left">
-            <BrandLogo size="sm" />
-            <p className="text-[11px] text-zinc-500">Competitive Tournament Infrastructure for Free Fire &amp; PUBG Mobile.</p>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-6 text-zinc-400 font-semibold text-xs">
-            <Link to="/tournaments" className="hover:text-white transition">Tournaments</Link>
-            <Link to="/yourmatches" className="hover:text-white transition">My Matches</Link>
-            <Link to="/refer-and-earn" className="hover:text-white transition">Refer & Earn</Link>
-            <Link to="/affiliate" className="hover:text-white transition">Affiliate Portal</Link>
-            <Link to="/login" className="hover:text-white transition">Sign In</Link>
-          </div>
-        </div>
-
-        <div className="max-w-5xl mx-auto mt-8 pt-8 border-t border-zinc-900/80 flex flex-col sm:flex-row justify-between items-center text-[10px] text-zinc-600 gap-2">
-          <span>&copy; {new Date().getFullYear()} LocalEsport Esports Platform. All rights reserved.</span>
-          <span>Free Fire & PUBG Mobile trademarks belong to their respective publishers.</span>
-        </div>
-      </footer>
     </div>
   );
 }

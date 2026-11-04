@@ -5,8 +5,10 @@ import { motion } from 'framer-motion';
 import SquadRegisterModal from './SquadRegisterModal';
 import WalletModal from './WalletModal';
 import LiveActivityTicker from './LiveActivityTicker';
+import Toast from './Toast';
 
 export default function TournamentsPage() {
+  const [toast, setToast] = useState(null);
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [gameFilter, setGameFilter] = useState('all'); // 'all' | 'free-fire' | 'pubg-mobile'
@@ -106,8 +108,12 @@ export default function TournamentsPage() {
 
   const handleJoinClick = (tournament) => {
     if (!token) {
-      alert('Please log in first to register for tournaments.');
-      navigate('/login');
+      setToast({
+        title: 'Sign In Required',
+        message: 'Please sign in to your LocalEsport account to register for match slots.',
+        type: 'warning',
+      });
+      setTimeout(() => navigate('/login'), 1400);
       return;
     }
     setSelectedTournament(tournament);
@@ -115,6 +121,7 @@ export default function TournamentsPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#050507] text-[#e4e4e7] pt-24 sm:pt-28 pb-16 px-3 sm:px-6 lg:px-8">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
         {/* Header section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-5 sm:pb-6">
