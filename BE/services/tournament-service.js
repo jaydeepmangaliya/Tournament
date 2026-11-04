@@ -873,14 +873,27 @@ tournamentService.updateRoomCredentials = async (tournamentId, { roomId, roomPas
     try {
       const notificationService = require('./notification-service');
       const tourneyTitle = existing[0]?.title || `Tournament #${tournamentId}`;
+      const cleanRoom = roomId.trim();
+      const cleanPass = roomPassword.trim();
       notificationService.sendToTournamentParticipants(tournamentId, {
         title: `⚡ Room Ready! ${tourneyTitle}`,
-        body: `Room ID: ${roomId.trim()} | Pass: ${roomPassword.trim()}\nMatch starts in <10 minutes. Tap to view your slot!`,
+        body: `Room ID: ${cleanRoom} | Pass: ${cleanPass}\nMatch starts soon! Tap action below to copy credentials.`,
         icon: '/icon-192.png',
         badge: '/icon-192.png',
         tag: `match-room-${tournamentId}`,
-        url: '/yourmatches',
-        data: { url: '/yourmatches', tournamentId }
+        url: `/yourmatches?copied=id&val=${encodeURIComponent(cleanRoom)}`,
+        roomId: cleanRoom,
+        roomPassword: cleanPass,
+        data: {
+          url: `/yourmatches?copied=id&val=${encodeURIComponent(cleanRoom)}`,
+          tournamentId,
+          roomId: cleanRoom,
+          roomPassword: cleanPass,
+        },
+        actions: [
+          { action: 'copy-id', title: `📋 Copy Room: ${cleanRoom}` },
+          { action: 'copy-pass', title: `🔑 Copy Pass: ${cleanPass}` },
+        ],
       }).catch((e) => console.warn('[NotificationService] Async push error:', e.message));
     } catch (pushErr) {
       console.warn('[NotificationService] Push trigger error:', pushErr.message);

@@ -22,7 +22,6 @@ export default function PlayerMatches() {
   const [activeAlertMatch, setActiveAlertMatch] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [dismissedAlerts, setDismissedAlerts] = useState(() => new Set());
-  const [testingPush, setTestingPush] = useState(false);
   const [pushStatusMsg, setPushStatusMsg] = useState('');
 
   // Filter & Pagination state
@@ -118,6 +117,25 @@ export default function PlayerMatches() {
     fetchMyMatches();
   }, []);
 
+  // Handle 1-tap copy when opened from phone push notification
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const copiedType = params.get('copied');
+    const copiedVal = params.get('val');
+    if (copiedVal) {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(copiedVal).catch(() => {});
+      }
+      if (copiedType === 'id') {
+        setPushStatusMsg(`📋 Room ID "${copiedVal}" copied to your clipboard!`);
+      } else if (copiedType === 'pass') {
+        setPushStatusMsg(`🔑 Room Password "${copiedVal}" copied to your clipboard!`);
+      }
+      setTimeout(() => setPushStatusMsg(''), 5000);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   // Live Background Polling every 7 seconds
   useEffect(() => {
     const pollInterval = setInterval(() => {
@@ -129,63 +147,6 @@ export default function PlayerMatches() {
   const handleDismissAlert = (matchId) => {
     setDismissedAlerts((prev) => new Set(prev).add(matchId));
     setActiveAlertMatch(null);
-  };
-
-  const handleTestPhonePush = async () => {
-    setTestingPush(true);
-    setPushStatusMsg('');
-    try {
-      if (!('Notification' in window)) {
-        setPushStatusMsg('Your browser does not support Web Push notifications.');
-        setTestingPush(false);
-        return;
-      }
-
-      let perm = Notification.permission;
-      if (perm !== 'granted') {
-        perm = await Notification.requestPermission();
-      }
-
-      if (perm !== 'granted') {
-        setPushStatusMsg('Permission not granted. Please enable notifications in your browser.');
-        setTestingPush(false);
-        return;
-      }
-
-      const reg = await navigator.serviceWorker.ready;
-      const keyRes = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/notifications/vapid-key`);
-      const vapidPublicKey = keyRes.data?.publicKey;
-
-      if (vapidPublicKey) {
-        let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-          });
-        }
-
-        await axios.post(
-          `${import.meta.env.VITE_API_URL || ""}/api/notifications/subscribe`,
-          { subscription: sub },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      }
-
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || ""}/api/notifications/test`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setPushStatusMsg(res.data?.message || 'Push sent! Check your phone notification tray.');
-      setTimeout(() => setPushStatusMsg(''), 7000);
-    } catch (err) {
-      console.error('Test phone push error:', err);
-      setPushStatusMsg(err.response?.data?.message || err.message || 'Push test failed');
-    } finally {
-      setTestingPush(false);
-    }
   };
 
   const copyText = (text, type, matchId) => {
@@ -357,20 +318,7 @@ export default function PlayerMatches() {
             )}
           </div>
 
-          <div className="flex items-center flex-wrap gap-2 self-start sm:self-auto">
-            <button
-              onClick={handleTestPhonePush}
-              disabled={testingPush}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black transition flex items-center space-x-1.5 cursor-pointer shadow-md disabled:opacity-50"
-            >
-              <span>{testingPush ? '⏳ Sending Push...' : '📲 Test Phone Push'}</span>
-            </button>
-            <button
-              onClick={playRoomAlertChime}
-              className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
-            >
-              <span>🔔 Test Chime</span>
-            </button>
+          <div className="flex items-center space-x-2 self-start sm:self-auto">
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               className={`p-2 rounded-xl border text-xs font-bold transition cursor-pointer ${
@@ -379,6 +327,7 @@ export default function PlayerMatches() {
                   : 'bg-zinc-900 border-zinc-800 text-zinc-500'
               }`}
               title={soundEnabled ? 'Mute Alert Sound' : 'Unmute Alert Sound'}
+              aria-label={soundEnabled ? 'Mute Alert Sound' : 'Unmute Alert Sound'}
             >
               {soundEnabled ? (
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -403,20 +352,20 @@ export default function PlayerMatches() {
               initial={{ opacity: 0, y: -15, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -15, scale: 0.98 }}
-              className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#181308] to-amber-500/15 border border-amber-500/60 shadow-[0_10px_35px_rgba(245,158,11,0.2)]"
+              className="p-3.5 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#181308] to-amber-500/15 border border-amber-500/60 shadow-[0_10px_35px_rgba(245,158,11,0.25)]"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-start space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-black flex items-center justify-center flex-shrink-0 animate-bounce shadow-lg">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start space-x-3 min-w-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-black flex items-center justify-center flex-shrink-0 animate-bounce shadow-lg">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <circle cx="8" cy="15" r="4" />
                       <path d="M10.85 12.15L19 4" />
                       <path d="M18 5l2 2" />
                       <path d="M15 8l2 2" />
                     </svg>
                   </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center space-x-2 flex-wrap">
                       <span className="px-2 py-0.5 rounded bg-amber-500 text-black font-black text-[9px] uppercase tracking-wider animate-pulse">
                         ROOM READY NOW
                       </span>
@@ -424,40 +373,46 @@ export default function PlayerMatches() {
                         Join Slot #{activeAlertMatch.my_slot_number}
                       </span>
                     </div>
-                    <h3 className="text-sm sm:text-base font-black text-white mt-0.5">
-                      {activeAlertMatch.title} — Room ID &amp; Password Ready!
+                    <h3 className="text-sm sm:text-base font-black text-white mt-0.5 truncate">
+                      {activeAlertMatch.title}
                     </h3>
                     <p className="text-xs text-zinc-300 mt-0.5">
-                      Open Free Fire immediately and join custom room. Match starts in &lt;10 minutes!
+                      Open Free Fire immediately and join custom room. Match starts soon!
                     </p>
                   </div>
                 </div>
 
-                {/* Fast Action Buttons */}
-                <div className="flex items-center flex-wrap gap-2 font-mono w-full sm:w-auto pt-2 sm:pt-0">
-                  <button
-                    onClick={() => copyText(activeAlertMatch.room_id, 'id', activeAlertMatch.id)}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition flex items-center space-x-1 shadow-lg cursor-pointer"
-                  >
-                    <span>{copiedId === activeAlertMatch.id ? 'COPIED!' : `ID: ${activeAlertMatch.room_id}`}</span>
-                  </button>
-                  <button
-                    onClick={() => copyText(activeAlertMatch.room_password, 'pass', activeAlertMatch.id)}
-                    className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition flex items-center space-x-1 border border-zinc-700 cursor-pointer"
-                  >
-                    <span>{copiedPass === activeAlertMatch.id ? 'COPIED!' : `PASS: ${activeAlertMatch.room_password}`}</span>
-                  </button>
-                  <button
-                    onClick={() => handleDismissAlert(activeAlertMatch.id)}
-                    className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
-                    title="Dismiss Alert"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
+                {/* Dismiss button */}
+                <button
+                  type="button"
+                  onClick={() => handleDismissAlert(activeAlertMatch.id)}
+                  className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700/80 transition flex-shrink-0 cursor-pointer"
+                  title="Dismiss Alert"
+                  aria-label="Dismiss Alert"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Fast Action Buttons row */}
+              <div className="mt-3 pt-3 border-t border-amber-500/20 flex items-center flex-wrap gap-2 font-mono">
+                <button
+                  type="button"
+                  onClick={() => copyText(activeAlertMatch.room_id, 'id', activeAlertMatch.id)}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition flex items-center justify-center space-x-1 shadow-lg cursor-pointer"
+                >
+                  <span>{copiedId === activeAlertMatch.id ? '✓ COPIED ROOM ID!' : `ROOM ID: ${activeAlertMatch.room_id}`}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyText(activeAlertMatch.room_password, 'pass', activeAlertMatch.id)}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-amber-300 text-xs font-bold transition flex items-center justify-center space-x-1 border border-amber-500/40 cursor-pointer"
+                >
+                  <span>{copiedPass === activeAlertMatch.id ? '✓ COPIED PASS!' : `PASS: ${activeAlertMatch.room_password}`}</span>
+                </button>
               </div>
             </motion.div>
           )}

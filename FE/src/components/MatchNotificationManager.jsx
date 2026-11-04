@@ -17,7 +17,7 @@ function urlBase64ToUint8Array(base64String) {
 /**
  * Global Real-Time Match Notification & Push Alert Manager
  * - Native Browser & Mobile OS Push Notifications (VAPID / WebPush protocol)
- * - 1-Click "Copy Room ID & Pass" Sticky Notification Bar staying at the top of the screen
+ * - 1-Click "Copy Room ID & Pass" Floating Banner (shown on non-/yourmatches pages, easily dismissible)
  * - Instant Cancelled Match Refund Banner
  * - High-pitched gaming audio chime synthesized via Web Audio API
  */
@@ -28,12 +28,18 @@ export default function MatchNotificationManager() {
       : 'denied';
   });
   const [showPrompt, setShowPrompt] = useState(false);
-  const [activeAlert, setActiveAlert] = useState(null);
   const [stickyMatch, setStickyMatch] = useState(null);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [cancelledAlert, setCancelledAlert] = useState(null);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedPass, setCopiedPass] = useState(false);
+  const [dismissedRoomIds, setDismissedRoomIds] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('dismissed_room_alerts');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   const seenMatchesRef = useRef(new Set());
   const navigate = useNavigate();
@@ -52,7 +58,6 @@ export default function MatchNotificationManager() {
 
   const subscribeToPushServer = async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.log('[Push Notification] PushManager not supported in this browser environment');
       return;
     }
 
@@ -76,7 +81,6 @@ export default function MatchNotificationManager() {
           { subscription: sub },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        console.log('[Push Notification] Device registered with server successfully!');
       }
     } catch (err) {
       console.warn('[Push Notification] Push subscription error:', err);
@@ -93,7 +97,7 @@ export default function MatchNotificationManager() {
     if ('Notification' in window && Notification.permission === 'default') {
       const dismissed = sessionStorage.getItem('notif_prompt_dismissed');
       if (!dismissed) {
-        const t = setTimeout(() => setShowPrompt(true), 2000);
+        const t = setTimeout(() => setShowPrompt(true), 2500);
         return () => clearTimeout(t);
       }
     } else if ('Notification' in window && Notification.permission === 'granted') {
@@ -112,9 +116,9 @@ export default function MatchNotificationManager() {
         if ('serviceWorker' in navigator) {
           const reg = await navigator.serviceWorker.ready;
           reg.showNotification('⚡ LocalEsport Notifications Enabled!', {
-            body: 'You will receive instant phone alerts when your match Room ID & Password are ready!',
-            icon: '/favicon.svg',
-            badge: '/favicon.svg',
+            body: 'You will receive instant phone alerts with 1-tap Copy buttons when your Room ID & Password are ready!',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
             tag: 'welcome-notification',
           });
         }
@@ -129,13 +133,22 @@ export default function MatchNotificationManager() {
     sessionStorage.setItem('notif_prompt_dismissed', 'true');
   };
 
+  const handleDismissRoom = (matchId) => {
+    setDismissedRoomIds((prev) => {
+      const next = new Set(prev).add(matchId);
+      try {
+        sessionStorage.setItem('dismissed_room_alerts', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+    setStickyMatch(null);
+  };
+
   // Play Futuristic Gaming Chime Sound
   const playGamingAlertSound = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const now = ctx.currentTime;
-
-      // 4-tone triumphant alert chime (C5, E5, G5, C6)
       const notes = [523.25, 659.25, 783.99, 1046.5];
       notes.forEach((freq, idx) => {
         const osc = ctx.createOscillator();
@@ -159,18 +172,28 @@ export default function MatchNotificationManager() {
     }
   };
 
-  // Trigger Native Operating System Push Notification
+  // Trigger Native Operating System Push Notification with 1-Tap Copy Actions
   const triggerNativePushNotification = async (match) => {
-    const title = `⚡ Match Starting Now! ${match.title}`;
-    const body = `Room ID: ${match.room_id} | Password: ${match.room_password}\nClick to join the custom room immediately!`;
+    const cleanRoom = (match.room_id || '').trim();
+    const cleanPass = (match.room_password || '').trim();
+    const title = `⚡ Match Room Ready! ${match.title}`;
+    const body = `Room ID: ${cleanRoom} | Pass: ${cleanPass}\nMatch starts soon. Tap to copy!`;
 
     const options = {
       body,
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       tag: `match-room-${match.id}`,
       requireInteraction: true,
-      data: { url: '/yourmatches' },
+      data: {
+        url: `/yourmatches?copied=id&val=${encodeURIComponent(cleanRoom)}`,
+        roomId: cleanRoom,
+        roomPassword: cleanPass,
+      },
+      actions: [
+        { action: 'copy-id', title: `📋 Copy Room: ${cleanRoom}` },
+        { action: 'copy-pass', title: `🔑 Copy Pass: ${cleanPass}` },
+      ],
     };
 
     try {
@@ -181,7 +204,7 @@ export default function MatchNotificationManager() {
         const n = new Notification(title, options);
         n.onclick = () => {
           window.focus();
-          window.location.href = '/yourmatches';
+          window.location.href = `/yourmatches?copied=id&val=${encodeURIComponent(cleanRoom)}`;
         };
       }
     } catch (err) {
@@ -208,14 +231,15 @@ export default function MatchNotificationManager() {
         if (res.data.status && isMounted) {
           const matches = res.data.data || [];
 
-          // Find if there is an active match with live room credentials
+          // Find active match with live room credentials that has not been dismissed
           const activeRoomMatch = matches.find(
             (m) =>
               m.has_room_credentials &&
               m.room_id &&
               m.room_password &&
               m.status !== 'completed' &&
-              m.status !== 'cancelled'
+              m.status !== 'cancelled' &&
+              !dismissedRoomIds.has(m.id)
           );
 
           if (activeRoomMatch) {
@@ -235,9 +259,6 @@ export default function MatchNotificationManager() {
 
               // 2. Fire Native Browser Push Notification
               triggerNativePushNotification(activeRoomMatch);
-
-              // 3. Set In-App Visual Alert Banner
-              setActiveAlert(activeRoomMatch);
             }
           } else {
             setStickyMatch(null);
@@ -262,16 +283,18 @@ export default function MatchNotificationManager() {
     };
 
     checkMatches();
-    const interval = setInterval(checkMatches, 6000);
+    const interval = setInterval(checkMatches, 7000);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [token]);
+  }, [token, dismissedRoomIds]);
 
   const copyText = (text, type) => {
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+    }
     if (type === 'id') {
       setCopiedId(true);
       setTimeout(() => setCopiedId(false), 2000);
@@ -280,6 +303,9 @@ export default function MatchNotificationManager() {
       setTimeout(() => setCopiedPass(false), 2000);
     }
   };
+
+  // If user is already on "/yourmatches", don't render the floating sticky bar (they already see their match list)
+  const isMatchesPage = location.pathname === '/yourmatches';
 
   return (
     <>
@@ -305,7 +331,7 @@ export default function MatchNotificationManager() {
                     Never Miss A Match!
                   </h4>
                   <p className="text-[11px] text-zinc-300 font-medium">
-                    Enable push notifications to receive instant Room ID & Password alerts directly on your screen.
+                    Enable push notifications to receive instant Room ID &amp; Password alerts directly on your phone lock screen.
                   </p>
                 </div>
               </div>
@@ -351,7 +377,7 @@ export default function MatchNotificationManager() {
                 </span>
                 <div>
                   <h4 className="text-xs font-black uppercase tracking-wider text-rose-300">
-                    Match Cancelled & Refunded!
+                    Match Cancelled &amp; Refunded!
                   </h4>
                   <p className="text-[11px] text-zinc-300 font-medium">
                     "{cancelledAlert.title}" was cancelled by Admin. ₹{parseFloat(cancelledAlert.entry_fee_paid || cancelledAlert.entry_fee).toFixed(2)} has been credited to your <strong className="text-white">Withdrawable Wallet Balance</strong>.
@@ -380,153 +406,92 @@ export default function MatchNotificationManager() {
         )}
       </AnimatePresence>
 
-      {/* 3. STICKY TOP "COPY ROOM ID & PASS" NOTIFICATION BAR */}
+      {/* 3. MOBILE-OPTIMIZED DISMISSIBLE FLOATING ROOM BAR (Shown on non-match pages only) */}
       <AnimatePresence>
-        {stickyMatch && (
+        {!isMatchesPage && stickyMatch && (
           <motion.div
-            initial={{ opacity: 0, y: -40 }}
+            initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }}
-            className="fixed top-[58px] sm:top-[64px] left-1/2 -translate-x-1/2 z-40 w-[96vw] max-w-4xl"
+            exit={{ opacity: 0, y: -25 }}
+            className="fixed top-16 sm:top-20 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 sm:w-[94vw] sm:max-w-2xl"
           >
-            {isMinimized ? (
-              // MINIMIZED COMPACT FLOATING PILL
-              <div className="flex items-center justify-between bg-[#0e0e14]/95 border border-amber-500/70 rounded-full px-3.5 py-1.5 shadow-[0_6px_25px_rgba(245,158,11,0.35)] backdrop-blur-xl">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                  <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider">
-                    Room Live:
+            <div className="bg-[#0e0e16]/98 border border-amber-500/70 rounded-2xl p-2.5 sm:p-3 shadow-[0_10px_35px_rgba(245,158,11,0.35)] backdrop-blur-xl text-white">
+              {/* Header row: Status + Match title + Close Button */}
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
+                <div className="flex items-center space-x-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-black uppercase text-amber-300 tracking-wider flex-shrink-0">
+                    ROOM LIVE • SLOT #{stickyMatch.my_slot_number}
                   </span>
-                  <span className="text-[11px] font-mono font-bold text-white">
-                    ID: {stickyMatch.room_id}
+                  <span className="text-xs font-bold text-white truncate hidden sm:inline">
+                    — {stickyMatch.title}
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-1.5 ml-2">
+                <div className="flex items-center space-x-2 flex-shrink-0">
                   <button
                     type="button"
-                    onClick={() => copyText(stickyMatch.room_id, 'id')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                      copiedId
-                        ? 'bg-emerald-500 text-black'
-                        : 'bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-zinc-700'
-                    }`}
+                    onClick={() => navigate('/yourmatches')}
+                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-wider rounded-lg transition shadow-sm cursor-pointer"
                   >
-                    {copiedId ? 'COPIED!' : 'COPY ID'}
+                    My Matches
                   </button>
                   <button
                     type="button"
-                    onClick={() => copyText(stickyMatch.room_password, 'pass')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                      copiedPass
-                        ? 'bg-emerald-500 text-black'
-                        : 'bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-zinc-700'
-                    }`}
-                  >
-                    {copiedPass ? 'COPIED!' : 'COPY PASS'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsMinimized(false)}
-                    title="Expand Room Details"
-                    className="p-1 text-zinc-400 hover:text-white rounded transition cursor-pointer"
+                    onClick={() => handleDismissRoom(stickyMatch.id)}
+                    className="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 transition cursor-pointer"
+                    title="Close room notification"
+                    aria-label="Close notification"
                   >
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="6 9 12 15 18 9" />
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
                 </div>
               </div>
-            ) : (
-              // FULL HIGH-VISIBILITY STICKY BAR
-              <div className="relative bg-[#0b0b12]/95 border-2 border-amber-500/80 rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 shadow-[0_12px_40px_rgba(245,158,11,0.38)] backdrop-blur-2xl text-white overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-transparent to-amber-500/10 pointer-events-none" />
 
-                <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-                  {/* Left: Match Info & Live Badge */}
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center flex-shrink-0 text-amber-300">
-                      <svg className="w-4 h-4 animate-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                      </svg>
-                    </span>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-1.5 flex-wrap">
-                        <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-black uppercase tracking-wider">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                          <span>ROOM LIVE</span>
-                        </span>
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase">
-                          Slot #{stickyMatch.my_slot_number}
-                        </span>
-                      </div>
-                      <h4 className="text-xs sm:text-sm font-black text-white truncate max-w-[190px] sm:max-w-xs md:max-w-sm">
-                        {stickyMatch.title}
-                      </h4>
-                    </div>
+              {/* Action row: Clean, responsive ID & Pass pills */}
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                {/* Room ID Pill */}
+                <div className="flex items-center justify-between bg-black/70 border border-zinc-700/80 rounded-xl px-2.5 py-1.5">
+                  <div className="flex items-center space-x-1 min-w-0">
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase">ID:</span>
+                    <span className="font-mono font-black text-amber-300 truncate select-all">{stickyMatch.room_id}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => copyText(stickyMatch.room_id, 'id')}
+                    className={`ml-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex-shrink-0 ${
+                      copiedId
+                        ? 'bg-emerald-500 text-black'
+                        : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-black border border-amber-500/40'
+                    }`}
+                  >
+                    {copiedId ? 'COPIED!' : 'COPY'}
+                  </button>
+                </div>
 
-                  {/* Center & Right: 1-Click Room ID & Pass Buttons */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap ml-auto">
-                    {/* Room ID Pill */}
-                    <div className="flex items-center bg-black/70 border border-zinc-700/80 rounded-xl px-2.5 py-1 space-x-2">
-                      <span className="text-[10px] uppercase font-bold text-zinc-400">Room:</span>
-                      <span className="text-xs font-mono font-black text-amber-300">{stickyMatch.room_id}</span>
-                      <button
-                        type="button"
-                        onClick={() => copyText(stickyMatch.room_id, 'id')}
-                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                          copiedId
-                            ? 'bg-emerald-500 text-black shadow-sm'
-                            : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-black border border-amber-500/40'
-                        }`}
-                      >
-                        {copiedId ? '✓ COPIED' : 'COPY'}
-                      </button>
-                    </div>
-
-                    {/* Pass Pill */}
-                    <div className="flex items-center bg-black/70 border border-zinc-700/80 rounded-xl px-2.5 py-1 space-x-2">
-                      <span className="text-[10px] uppercase font-bold text-zinc-400">Pass:</span>
-                      <span className="text-xs font-mono font-black text-amber-300">{stickyMatch.room_password}</span>
-                      <button
-                        type="button"
-                        onClick={() => copyText(stickyMatch.room_password, 'pass')}
-                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                          copiedPass
-                            ? 'bg-emerald-500 text-black shadow-sm'
-                            : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-black border border-amber-500/40'
-                        }`}
-                      >
-                        {copiedPass ? '✓ COPIED' : 'COPY'}
-                      </button>
-                    </div>
-
-                    {/* View Match */}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/yourmatches')}
-                      className="hidden sm:inline-flex px-3 py-1.5 bg-silver-gradient text-black font-black text-xs uppercase tracking-wider rounded-xl transition hover:brightness-110 shadow cursor-pointer"
-                    >
-                      My Matches
-                    </button>
-
-                    {/* Minimize Button */}
-                    <button
-                      type="button"
-                      onClick={() => setIsMinimized(true)}
-                      title="Minimize Sticky Bar"
-                      className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points="18 15 12 9 6 15" />
-                      </svg>
-                    </button>
+                {/* Password Pill */}
+                <div className="flex items-center justify-between bg-black/70 border border-zinc-700/80 rounded-xl px-2.5 py-1.5">
+                  <div className="flex items-center space-x-1 min-w-0">
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase">PASS:</span>
+                    <span className="font-mono font-black text-amber-300 truncate select-all">{stickyMatch.room_password}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => copyText(stickyMatch.room_password, 'pass')}
+                    className={`ml-1.5 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex-shrink-0 ${
+                      copiedPass
+                        ? 'bg-emerald-500 text-black'
+                        : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-black border border-amber-500/40'
+                    }`}
+                  >
+                    {copiedPass ? 'COPIED!' : 'COPY'}
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
