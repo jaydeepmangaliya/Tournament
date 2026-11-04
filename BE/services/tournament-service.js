@@ -708,6 +708,7 @@ tournamentService.getMyMatches = async (userId) => {
         t.*,
         g.name as game_name,
         g.slug as game_slug,
+        tt.id as my_team_id,
         tt.slot_number as my_slot_number,
         tt.team_name as my_team_name,
         tt.is_random_squad,
@@ -727,14 +728,25 @@ tournamentService.getMyMatches = async (userId) => {
 
     return {
       status: true,
-      data: matches.map(m => ({
-        ...m,
-        entry_fee: parseFloat(m.entry_fee),
-        prize_pool: parseFloat(m.prize_pool),
-        per_kill_prize: parseFloat(m.per_kill_prize || 0),
-        first_prize: parseFloat(m.first_prize || 0),
-        has_room_credentials: Boolean(m.room_id && m.room_password),
-      })),
+      data: matches.map(m => {
+        let winnerSummary = m.winner_summary;
+        if (typeof winnerSummary === 'string') {
+          try {
+            winnerSummary = JSON.parse(winnerSummary);
+          } catch (e) {
+            winnerSummary = null;
+          }
+        }
+        return {
+          ...m,
+          entry_fee: parseFloat(m.entry_fee),
+          prize_pool: parseFloat(m.prize_pool),
+          per_kill_prize: parseFloat(m.per_kill_prize || 0),
+          first_prize: parseFloat(m.first_prize || 0),
+          has_room_credentials: Boolean(m.room_id && m.room_password),
+          winner_summary: winnerSummary,
+        };
+      }),
     };
   } catch (error) {
     console.error("getMyMatches error:", error);
