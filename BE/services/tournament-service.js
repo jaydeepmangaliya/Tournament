@@ -869,6 +869,23 @@ tournamentService.updateRoomCredentials = async (tournamentId, { roomId, roomPas
       [roomId.trim(), roomPassword.trim(), tournamentId]
     );
 
+    // Dispatch Native Background Web Push Notifications to all participants' phones
+    try {
+      const notificationService = require('./notification-service');
+      const tourneyTitle = existing[0]?.title || `Tournament #${tournamentId}`;
+      notificationService.sendToTournamentParticipants(tournamentId, {
+        title: `⚡ Room Ready! ${tourneyTitle}`,
+        body: `Room ID: ${roomId.trim()} | Pass: ${roomPassword.trim()}\nMatch starts in <10 minutes. Tap to view your slot!`,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        tag: `match-room-${tournamentId}`,
+        url: '/yourmatches',
+        data: { url: '/yourmatches', tournamentId }
+      }).catch((e) => console.warn('[NotificationService] Async push error:', e.message));
+    } catch (pushErr) {
+      console.warn('[NotificationService] Push trigger error:', pushErr.message);
+    }
+
     return {
       status: true,
       message: `Room credentials set for Tournament #${tournamentId}! Players can now view credentials in their dashboard.`,

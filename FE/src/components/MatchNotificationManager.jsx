@@ -3,9 +3,20 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 /**
  * Global Real-Time Match Notification & Push Alert Manager
- * - Native Browser Push Notifications (OS level) when Room ID & Password are released
+ * - Native Browser & Mobile OS Push Notifications (VAPID / WebPush protocol)
  * - 1-Click "Copy Room ID & Pass" Sticky Notification Bar staying at the top of the screen
  * - Instant Cancelled Match Refund Banner
  * - High-pitched gaming audio chime synthesized via Web Audio API
@@ -39,6 +50,39 @@ export default function MatchNotificationManager() {
     }
   }, []);
 
+  const subscribeToPushServer = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.log('[Push Notification] PushManager not supported in this browser environment');
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const keyRes = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/notifications/vapid-key`);
+      const vapidPublicKey = keyRes.data?.publicKey;
+      if (!vapidPublicKey) return;
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+      }
+
+      if (token) {
+        await axios.post(
+          `${import.meta.env.VITE_API_URL || ""}/api/notifications/subscribe`,
+          { subscription: sub },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log('[Push Notification] Device registered with server successfully!');
+      }
+    } catch (err) {
+      console.warn('[Push Notification] Push subscription error:', err);
+    }
+  };
+
   // Show permission prompt if logged in and not yet requested
   useEffect(() => {
     if (!token) {
@@ -49,9 +93,11 @@ export default function MatchNotificationManager() {
     if ('Notification' in window && Notification.permission === 'default') {
       const dismissed = sessionStorage.getItem('notif_prompt_dismissed');
       if (!dismissed) {
-        const t = setTimeout(() => setShowPrompt(true), 2500);
+        const t = setTimeout(() => setShowPrompt(true), 2000);
         return () => clearTimeout(t);
       }
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      subscribeToPushServer();
     }
   }, [token]);
 
@@ -62,17 +108,14 @@ export default function MatchNotificationManager() {
       setPermission(perm);
       setShowPrompt(false);
       if (perm === 'granted') {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        await subscribeToPushServer();
+        if ('serviceWorker' in navigator) {
           const reg = await navigator.serviceWorker.ready;
-          reg.showNotification('LocalEsport Notifications Enabled!', {
-            body: 'You will receive instant alerts when your tournament room ID & password are ready.',
+          reg.showNotification('⚡ LocalEsport Notifications Enabled!', {
+            body: 'You will receive instant phone alerts when your match Room ID & Password are ready!',
             icon: '/favicon.svg',
+            badge: '/favicon.svg',
             tag: 'welcome-notification',
-          });
-        } else {
-          new Notification('LocalEsport Notifications Enabled!', {
-            body: 'You will receive instant alerts when your tournament room ID & password are ready.',
-            icon: '/favicon.svg',
           });
         }
       }

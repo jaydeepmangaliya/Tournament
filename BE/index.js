@@ -39,6 +39,7 @@ require('./routes/payment-route')(app);
 require('./routes/slotes-route')(app);
 require('./routes/user-route')(app);
 require('./routes/admin-route')(app);
+require('./routes/notification-route')(app);
 
 // Frontend fallback for non-API routes
 app.get(/^\/(?!api|auth).*/, (req, res) => {

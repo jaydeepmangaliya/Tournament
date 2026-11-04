@@ -3,6 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export default function PlayerMatches() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,6 +22,8 @@ export default function PlayerMatches() {
   const [activeAlertMatch, setActiveAlertMatch] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [dismissedAlerts, setDismissedAlerts] = useState(() => new Set());
+  const [testingPush, setTestingPush] = useState(false);
+  const [pushStatusMsg, setPushStatusMsg] = useState('');
 
   // Filter & Pagination state
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'completed'
@@ -116,6 +129,63 @@ export default function PlayerMatches() {
   const handleDismissAlert = (matchId) => {
     setDismissedAlerts((prev) => new Set(prev).add(matchId));
     setActiveAlertMatch(null);
+  };
+
+  const handleTestPhonePush = async () => {
+    setTestingPush(true);
+    setPushStatusMsg('');
+    try {
+      if (!('Notification' in window)) {
+        setPushStatusMsg('Your browser does not support Web Push notifications.');
+        setTestingPush(false);
+        return;
+      }
+
+      let perm = Notification.permission;
+      if (perm !== 'granted') {
+        perm = await Notification.requestPermission();
+      }
+
+      if (perm !== 'granted') {
+        setPushStatusMsg('Permission not granted. Please enable notifications in your browser.');
+        setTestingPush(false);
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const keyRes = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/notifications/vapid-key`);
+      const vapidPublicKey = keyRes.data?.publicKey;
+
+      if (vapidPublicKey) {
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          });
+        }
+
+        await axios.post(
+          `${import.meta.env.VITE_API_URL || ""}/api/notifications/subscribe`,
+          { subscription: sub },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL || ""}/api/notifications/test`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setPushStatusMsg(res.data?.message || 'Push sent! Check your phone notification tray.');
+      setTimeout(() => setPushStatusMsg(''), 7000);
+    } catch (err) {
+      console.error('Test phone push error:', err);
+      setPushStatusMsg(err.response?.data?.message || err.message || 'Push test failed');
+    } finally {
+      setTestingPush(false);
+    }
   };
 
   const copyText = (text, type, matchId) => {
@@ -280,9 +350,21 @@ export default function PlayerMatches() {
             <p className="text-zinc-400 text-xs sm:text-sm mt-1">
               Live status, assigned slot numbers, custom room IDs, and winner results.
             </p>
+            {pushStatusMsg && (
+              <p className="text-xs font-bold text-cyan-400 mt-1 animate-pulse">
+                {pushStatusMsg}
+              </p>
+            )}
           </div>
 
-          <div className="flex items-center space-x-2 self-start sm:self-auto">
+          <div className="flex items-center flex-wrap gap-2 self-start sm:self-auto">
+            <button
+              onClick={handleTestPhonePush}
+              disabled={testingPush}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black transition flex items-center space-x-1.5 cursor-pointer shadow-md disabled:opacity-50"
+            >
+              <span>{testingPush ? '⏳ Sending Push...' : '📲 Test Phone Push'}</span>
+            </button>
             <button
               onClick={playRoomAlertChime}
               className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"

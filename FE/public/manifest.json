@@ -1,0 +1,17 @@
+{
+  "name": "LocalEsport",
+  "short_name": "LocalEsport",
+  "description": "Competitive Esports Tournament Infrastructure for Free Fire",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050507",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

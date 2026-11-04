@@ -526,6 +526,23 @@ adminService.declareMatchResults = async (tournamentId, body) => {
 
     await connection.commit();
 
+    // Dispatch Push Notification to all participants
+    try {
+      const notificationService = require('./notification-service');
+      const topWinner = summaryWinners[0]?.teamName || 'Declared';
+      notificationService.sendToTournamentParticipants(tournamentId, {
+        title: `👑 Winner Declared! Match #${tournamentId}`,
+        body: `Match: ${tournament.title}\nWinner: ${topWinner}. Tap to see full match results and prize distributions!`,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        tag: `match-winner-${tournamentId}`,
+        url: '/yourmatches',
+        data: { url: '/yourmatches', tournamentId }
+      }).catch((e) => console.warn('[NotificationService] Result push error:', e.message));
+    } catch (e) {
+      console.warn('[NotificationService] Result push trigger error:', e.message);
+    }
+
     // Auto-Lobby Rebirth: Ensure players can immediately jump into the next open lobby
     try {
       const tournamentService = require('./tournament-service');
