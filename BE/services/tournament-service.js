@@ -406,17 +406,17 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         : `Team Slot #${chosenSlot} (${players[0].inGameName})`;
     }
 
-    // F. Handle Payment (Direct Online via Razorpay OR Wallet Balance)
-    if (body.paymentMethod === 'razorpay') {
-      // Direct Razorpay payment: no wallet deduction needed
+    // F. Handle Payment (Direct Online via Cashfree / Razorpay OR Wallet Balance)
+    if (body.paymentMethod === 'cashfree' || body.paymentMethod === 'razorpay' || body.paymentMethod === 'direct') {
+      // Direct online payment: verified & paid at payment gateway, no wallet balance deduction needed
       await connection.query(
         `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
          VALUES (?, 'entry_fee', 'deposit', ?, ?, ?, 'completed')`,
         [
           userId,
           entryFee,
-          `Direct Online Entry Fee (UPI/Razorpay) for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`,
-          body.razorpayPaymentId || `direct_${Date.now()}`
+          `Direct Online Entry Fee (${(body.paymentMethod || 'ONLINE').toUpperCase()}) for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`,
+          body.paymentId || body.razorpayPaymentId || `direct_${Date.now()}`
         ]
       );
     } else {
