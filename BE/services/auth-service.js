@@ -148,6 +148,31 @@ authService.register = async (body) => {
       [userId]
     );
 
+    // Instant Referral Reward: If user was referred by a friend, credit ₹10 instantly to the referrer!
+    if (referredByUserId) {
+      try {
+        await db.promise().query(
+          `INSERT IGNORE INTO wallets (user_id, deposit_balance, winning_balance, referral_balance) VALUES (?, 0.00, 0.00, 0.00)`,
+          [referredByUserId]
+        );
+        await db.promise().query(
+          `UPDATE wallets SET referral_balance = referral_balance + 10.00 WHERE user_id = ?`,
+          [referredByUserId]
+        );
+        await db.promise().query(
+          `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+           VALUES (?, 'referral_bonus', 'referral', 10.00, ?, ?, 'completed')`,
+          [
+            referredByUserId,
+            `Referral Bonus: ₹10 credited! Friend (${name || email.split('@')[0]}) joined using your referral code.`,
+            `ref_${userId}_${Date.now()}`
+          ]
+        );
+      } catch (refErr) {
+        console.error("Error crediting ₹10 referral reward:", refErr);
+      }
+    }
+
     const token = await generateJWT({ id: userId, email, role: userRole });
 
     return {

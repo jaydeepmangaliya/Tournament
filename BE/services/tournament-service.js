@@ -406,71 +406,17 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         : `Team Slot #${chosenSlot} (${players[0].inGameName})`;
     }
 
-    // F. Handle Payment (Direct Online via Cashfree / Razorpay OR Wallet Balance)
-    if (body.paymentMethod === 'cashfree' || body.paymentMethod === 'razorpay' || body.paymentMethod === 'direct') {
-      // Direct online payment: verified & paid at payment gateway, no wallet balance deduction needed
-      await connection.query(
-        `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
-         VALUES (?, 'entry_fee', 'deposit', ?, ?, ?, 'completed')`,
-        [
-          userId,
-          entryFee,
-          `Direct Online Entry Fee (${(body.paymentMethod || 'ONLINE').toUpperCase()}) for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`,
-          body.paymentId || body.razorpayPaymentId || `direct_${Date.now()}`
-        ]
-      );
-    } else {
-      // Standard wallet balance deduction
-      const [userWallets] = await connection.query(
-        `SELECT * FROM wallets WHERE user_id = ? FOR UPDATE`,
-        [userId]
-      );
-      if (userWallets.length === 0) {
-        await connection.rollback();
-        return { status: false, message: "Wallet not found. Please re-login." };
-      }
-
-      const wallet = userWallets[0];
-      let depBal = parseFloat(wallet.deposit_balance || 0);
-      let refBal = parseFloat(wallet.referral_balance || 0);
-      let winBal = parseFloat(wallet.winning_balance || 0);
-      const totalAvail = depBal + refBal + winBal;
-
-      if (totalAvail < entryFee) {
-        await connection.rollback();
-        return {
-          status: false,
-          message: `Insufficient wallet balance. Entry fee is ₹${entryFee.toFixed(2)}, but your balance is ₹${totalAvail.toFixed(2)}. Use direct UPI checkout to join immediately.`,
-        };
-      }
-
-      // Deduction priority: 1. Referral/Bonus balance, 2. Deposit balance, 3. Winning balance
-      let remainingToPay = entryFee;
-      let deductRef = Math.min(refBal, remainingToPay);
-      remainingToPay -= deductRef;
-
-      let deductDep = Math.min(depBal, remainingToPay);
-      remainingToPay -= deductDep;
-
-      let deductWin = Math.min(winBal, remainingToPay);
-      remainingToPay -= deductWin;
-
-      await connection.query(
-        `UPDATE wallets
-         SET deposit_balance = deposit_balance - ?,
-             referral_balance = referral_balance - ?,
-             winning_balance = winning_balance - ?
-         WHERE user_id = ?`,
-        [deductDep, deductRef, deductWin, userId]
-      );
-
-      // Record wallet ledger transaction
-      await connection.query(
-        `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
-         VALUES (?, 'entry_fee', 'mixed', ?, ?, ?, 'completed')`,
-        [userId, entryFee, `Entry Fee for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`, tournamentId.toString()]
-      );
-    }
+    // F. Handle Free Entry (Payment Bypassed - Open for Anyone to Join)
+    // Matches are 100% FREE to join. Win Booyah to earn cash!
+    await connection.query(
+      `INSERT INTO wallet_transactions (user_id, type, balance_type, amount, description, reference_id, status)
+       VALUES (?, 'entry_fee', 'deposit', 0.00, ?, ?, 'completed')`,
+      [
+        userId,
+        `Free Entry Registration for ${tournament.title} (Slot #${chosenSlot}${joinMode === 'random' ? ' Random Fill' : ''})`,
+        `free_${Date.now()}`
+      ]
+    );
 
     // G. Create or Update Tournament Team & Participant Roster
     let teamId = targetTeamId;

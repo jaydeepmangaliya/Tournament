@@ -38,7 +38,7 @@ export default function ReferAndEarn() {
   };
 
   const shareOnWhatsApp = () => {
-    const text = `Join me on LocalEsport to play Free Fire & PUBG Esports tournaments and win cash! Sign up with my link to get free welcome cash: ${referralLink}`;
+    const text = `Join me on LocalEsport to play Free Fire & PUBG tournaments for FREE! Win Booyah to earn ₹50 Cash, plus sign up using my referral link: ${referralLink}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -59,10 +59,10 @@ export default function ReferAndEarn() {
             Player Referral Program
           </span>
           <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-white">
-            Invite Friends. <span className="text-silver">Earn Real Cash.</span>
+            Invite Friends. <span className="text-amber-400">Earn ₹10 Cash Per Friend.</span>
           </h1>
           <p className="text-zinc-400 text-xs sm:text-sm max-w-xl leading-relaxed">
-            Invite your gaming squad! Every time a friend you referred joins a tournament, you get a bonus directly credited to your wallet. You can use it to <strong className="text-white">enter tournaments for free</strong> or <strong className="text-white">withdraw directly to UPI</strong>.
+            Invite your squad! Every time a friend signs up using your referral code or link, you instantly get <strong className="text-amber-400">₹10.00 cash credited directly to your wallet</strong>. Play 100% free tournaments, win Booyah to earn ₹50 cash, and <strong className="text-white">withdraw your earnings directly to your UPI ID</strong>.
           </p>
 
           {/* Referral Link & Share */}

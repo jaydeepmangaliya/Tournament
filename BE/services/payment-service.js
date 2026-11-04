@@ -591,4 +591,242 @@ paymentService.getPaymentStatus = async (req) => {
     }
 };
 
+/**
+ * GET UPI PAYMENT DETAILS (Configurable UPI ID, Payee Name, Dynamic NPCI URI)
+ */
+paymentService.getUpiInfo = async (req) => {
+    try {
+        const { tournamentId = 0, amount = 0, slotNumber = 1 } = req.query;
+        const upiId = process.env.ADMIN_UPI_ID || 'localesport@upi';
+        const payeeName = process.env.ADMIN_UPI_NAME || 'LocalEsport';
+        const numAmount = parseFloat(amount || 0);
+
+        const note = tournamentId && tournamentId != '0'
+            ? `LE_Match_${tournamentId}_Slot_${slotNumber}`
+            : `LE_Wallet_Topup`;
+
+        // Standard NPCI UPI URI Scheme
+        const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${numAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
+
+        return {
+            status: true,
+            data: {
+                upiId,
+                payeeName,
+                amount: numAmount,
+                note,
+                upiUri,
+            }
+        };
+    } catch (error) {
+        console.error("Error in getUpiInfo:", error);
+        return { status: false, error: error.message };
+    }
+};
+
+/**
+ * DIRECT UPI JOIN: Player pays via GPay/PhonePe/Paytm and submits 12-digit UTR
+ */
+paymentService.directUpiJoin = async (req) => {
+    try {
+        const {
+            tournamentId,
+            slotNumber,
+            teamName,
+            players = [],
+            joinMode = 'squad',
+            utr,
+            upiApp = 'upi'
+        } = req.body;
+
+        const userId = req.user?.id;
+        if (!userId) {
+            return { status: false, message: "Unauthorized. Please log in." };
+        }
+
+        if (!tournamentId) {
+            return { status: false, message: "Tournament ID is required." };
+        }
+
+        if (!utr || String(utr).trim().length < 8) {
+            return { status: false, message: "Please enter a valid 12-digit UPI Transaction ID (UTR)." };
+        }
+
+        const cleanUtr = String(utr).trim();
+
+        // 1. Anti-Replay: Verify UTR has not already been used
+        const [existing] = await db.promise().query(
+            "SELECT id FROM payments WHERE razorpay_payment_id = ? OR razorpay_order_id = ?",
+            [cleanUtr, `UPI_${cleanUtr}`]
+        );
+        if (existing.length > 0) {
+            return {
+                status: false,
+                message: "This UPI Transaction ID (UTR) has already been submitted. Every payment can only be used once."
+            };
+        }
+
+        // 2. Fetch tournament entry fee
+        const [tRows] = await db.promise().query("SELECT * FROM tournaments WHERE id = ?", [tournamentId]);
+        if (tRows.length === 0) {
+            return { status: false, message: "Tournament not found." };
+        }
+        const tournament = tRows[0];
+        const fullEntry = parseFloat(tournament.entry_fee || 0);
+        const reqPlayers = tournament.players_per_team || 1;
+        const requiredFee = joinMode === 'random' && reqPlayers > 1
+            ? parseFloat((fullEntry / reqPlayers).toFixed(2))
+            : fullEntry;
+
+        // 3. Record in payments table
+        await db.promise().query(
+            `INSERT INTO payments (
+                user_id, user_email, tournament_id, razorpay_order_id,
+                razorpay_payment_id, amount, currency, status,
+                payment_method, created_at, razorpay_created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'INR', 'completed', ?, NOW(), NOW())`,
+            [
+                userId,
+                req.user.email || null,
+                tournamentId,
+                `UPI_DIRECT_T${tournamentId}`,
+                cleanUtr,
+                requiredFee,
+                `upi_${upiApp}`
+            ]
+        );
+
+        // 4. Book slot in tournament
+        const tournamentService = require('./tournament-service');
+        const joinResult = await tournamentService.joinTournament(tournamentId, userId, {
+            teamName,
+            slotNumber,
+            players,
+            joinMode,
+            paymentMethod: 'direct',
+            paymentId: cleanUtr
+        });
+
+        if (!joinResult.status) {
+            // Rollback payment record if join failed
+            await db.promise().query("DELETE FROM payments WHERE razorpay_payment_id = ?", [cleanUtr]);
+            return joinResult;
+        }
+
+        return {
+            status: true,
+            message: `Payment verified! You are confirmed in Slot #${slotNumber}!`,
+            data: {
+                slot: slotNumber,
+                teamName: teamName,
+                utr: cleanUtr,
+                feePaid: requiredFee
+            }
+        };
+
+    } catch (error) {
+        console.error("Error in directUpiJoin:", error);
+        return { status: false, message: error.message };
+    }
+};
+
+/**
+ * DIRECT UPI WALLET TOP-UP: Player adds funds via Direct UPI
+ */
+paymentService.directUpiWalletTopup = async (req) => {
+    let connection = null;
+    try {
+        const { amount, utr, upiApp = 'upi' } = req.body;
+        const userId = req.user?.id;
+        if (!userId) {
+            return { status: false, message: "Unauthorized. Please log in." };
+        }
+
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount < 10) {
+            return { status: false, message: "Minimum top-up amount is ₹10." };
+        }
+
+        if (!utr || String(utr).trim().length < 8) {
+            return { status: false, message: "Please enter a valid 12-digit UPI Transaction ID (UTR)." };
+        }
+
+        const cleanUtr = String(utr).trim();
+
+        // 1. Anti-Replay: Verify UTR has not already been used
+        const [existing] = await db.promise().query(
+            "SELECT id FROM payments WHERE razorpay_payment_id = ? OR razorpay_order_id = ?",
+            [cleanUtr, `UPI_WALLET_${cleanUtr}`]
+        );
+        if (existing.length > 0) {
+            return {
+                status: false,
+                message: "This UPI Transaction ID (UTR) has already been used for another transaction."
+            };
+        }
+
+        // 2. Atomic credit
+        connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+
+        await connection.query(
+            `INSERT INTO payments (
+                user_id, user_email, tournament_id, razorpay_order_id,
+                razorpay_payment_id, amount, currency, status,
+                payment_method, created_at, razorpay_created_at
+            ) VALUES (?, ?, NULL, ?, ?, ?, 'INR', 'completed', ?, NOW(), NOW())`,
+            [
+                userId,
+                req.user.email || null,
+                `UPI_WALLET_${cleanUtr}`,
+                cleanUtr,
+                numAmount,
+                `upi_${upiApp}`
+            ]
+        );
+
+        await connection.query(
+            `INSERT IGNORE INTO wallets (user_id, deposit_balance, winning_balance, referral_balance) VALUES (?, 0, 0, 0)`,
+            [userId]
+        );
+
+        await connection.query(
+            `UPDATE wallets SET deposit_balance = deposit_balance + ? WHERE user_id = ?`,
+            [numAmount, userId]
+        );
+
+        await connection.query(
+            `INSERT INTO wallet_transactions (
+                user_id, type, balance_type, amount, description, reference_id, status
+            ) VALUES (?, 'deposit', 'deposit', ?, ?, ?, 'completed')`,
+            [
+                userId,
+                numAmount,
+                `Wallet Top-up via Direct UPI (${cleanUtr})`,
+                cleanUtr
+            ]
+        );
+
+        await connection.commit();
+
+        return {
+            status: true,
+            message: `₹${numAmount} successfully added to your wallet!`,
+            data: {
+                amount: numAmount,
+                utr: cleanUtr
+            }
+        };
+
+    } catch (error) {
+        if (connection) {
+            try { await connection.rollback(); } catch (rb) {}
+        }
+        console.error("Error in directUpiWalletTopup:", error);
+        return { status: false, message: error.message };
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = paymentService;

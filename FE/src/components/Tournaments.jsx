@@ -172,6 +172,30 @@ export default function TournamentsPage() {
           <LiveActivityTicker />
         </div>
 
+        {/* Free Entry & Referral Promotion Banner */}
+        <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-amber-500/15 to-emerald-500/10 border border-emerald-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left shadow-lg">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-black text-xl flex-shrink-0">
+              ⚡
+            </div>
+            <div>
+              <div className="flex items-center justify-center sm:justify-start space-x-2">
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">100% Free Entry Matches</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[9px] font-black uppercase">Open For All</span>
+              </div>
+              <p className="text-xs text-zinc-300 font-medium mt-0.5">
+                🔥 Win Booyah & Earn <strong className="text-emerald-400 font-bold">₹50 Cash Winnings</strong> | 🎁 Refer a friend & get <strong className="text-amber-400 font-bold">₹10 Cash</strong> instantly in your wallet!
+              </p>
+            </div>
+          </div>
+          <a
+            href="/refer"
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition flex-shrink-0 shadow-md"
+          >
+            Invite & Earn ₹10 ➔
+          </a>
+        </div>
+
         {/* Filters Bar */}
         <div className="flex flex-col gap-3.5 sm:gap-4 items-start justify-between">
           {/* Game Selector */}
@@ -303,18 +327,18 @@ export default function TournamentsPage() {
                     <div className="px-4 sm:px-6 py-3 sm:py-3.5 bg-zinc-950/80 border-y border-zinc-800/80 grid grid-cols-3 gap-2 text-center">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Entry Fee</span>
-                        <span className="text-sm font-black text-zinc-100">₹{t.entry_fee}</span>
+                        <span className="text-sm font-black text-emerald-400">FREE</span>
                       </div>
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Prize Pool</span>
-                        <span className="text-sm font-black text-white">₹{t.prize_pool}</span>
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Booyah Prize</span>
+                        <span className="text-sm font-black text-amber-300">₹{t.prize_pool || '50'}</span>
                       </div>
                       <div>
                         <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">
                           {t.per_kill_prize > 0 ? 'Per Kill' : '1st Prize'}
                         </span>
                         <span className="text-sm font-black text-silver">
-                          ₹{t.per_kill_prize > 0 ? t.per_kill_prize : t.first_prize}
+                          ₹{t.per_kill_prize > 0 ? t.per_kill_prize : (t.first_prize || t.prize_pool || '50')}
                         </span>
                       </div>
                     </div>
@@ -351,7 +375,7 @@ export default function TournamentsPage() {
                           onClick={() => handleJoinClick(t)}
                           className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition bg-silver-gradient hover:brightness-110 text-black shadow-md cursor-pointer flex items-center justify-center space-x-1"
                         >
-                          <span>{`Register ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}</span>
+                          <span>{`Register Free ${t.players_per_team > 1 ? 'Squad' : 'Now'}`}</span>
                         </button>
                       )}
                     </div>

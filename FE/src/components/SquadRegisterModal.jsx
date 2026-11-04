@@ -78,13 +78,6 @@ export default function SquadRegisterModal({
       .filter((uid, idx, arr) => uid && arr.indexOf(uid) !== idx)
   );
 
-  // Update paymentMethod if wallet balance changes or joinMode changes
-  useEffect(() => {
-    if (walletBalance >= activeEntryFee && paymentMethod === 'razorpay') {
-      setPaymentMethod('wallet');
-    }
-  }, [walletBalance, activeEntryFee]);
-
   // Fetch real-time live tournament data and booked slots from DB
   useEffect(() => {
     let isMounted = true;
@@ -190,229 +183,43 @@ export default function SquadRegisterModal({
 
     const submittedPlayers = joinMode === 'random' ? [players[0]] : players.slice(0, requiredPlayers);
 
-    // PATH 1: PAY VIA WALLET BALANCE
-    if (paymentMethod === 'wallet') {
-      if (!hasEnoughBalance) {
-        showToast(`Insufficient wallet balance. You need ₹${activeEntryFee.toFixed(2)}, but have ₹${walletBalance.toFixed(2)}. Please choose Direct UPI Payment below.`, 'warning', 'Insufficient Balance');
-        return;
-      }
-
-      setSubmitting(true);
-      try {
-        const payload = {
-          teamName: effectiveTeamName,
-          slotNumber: selectedSlot,
-          players: submittedPlayers,
-          joinMode,
-        };
-
-        const res = await axios.post(
-          `${import.meta.env.VITE_API_URL || ""}/api/tournaments/${tournament.id}/join`,
-          payload,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (res.data.status) {
-          showToast(res.data.message || `Slot #${selectedSlot} locked successfully!`, 'success', 'Registration Confirmed');
-          setRegisteredSuccessData({
-            slot: selectedSlot,
-            teamName: res.data.data?.teamName || effectiveTeamName,
-            joinMode,
-            feePaid: activeEntryFee,
-          });
-        } else {
-          showToast(res.data.message || 'Registration failed. Try again.', 'error');
-        }
-      } catch (err) {
-        showToast(err.response?.data?.message || 'Registration failed. Try again.', 'error');
-      } finally {
-        setSubmitting(false);
-      }
-      return;
-    }
-
-    // PATH 2: DIRECT ONLINE CHECKOUT (CASHFREE: UPI, GPAY, PHONEPE, QR, NETBANKING)
+    // 100% FREE ENTRY: Directly book slot with zero payment barrier
     setSubmitting(true);
     try {
-      const orderRes = await axios.post(
-        `${import.meta.env.VITE_API_URL || ""}/api/payment/create-order`,
-        {
-          amount: activeEntryFee,
-          tournamentId: tournament.id,
-          tournamentName: tournament.title,
-          customerPhone: submittedPlayers[0]?.phone || user?.phone || '',
-          customerName: submittedPlayers[0]?.playerName || user?.name || '',
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const orderData = orderRes.data;
-      if (!orderData?.orderId) {
-        throw new Error(orderRes.data?.message || 'Failed to initialize payment gateway.');
-      }
-
-      // 1. CASHFREE CHECKOUT (OFFICIAL MODAL)
-      if (orderData.paymentSessionId && window.Cashfree) {
-        const cfMode = (orderData.cfEnv === 'PRODUCTION' || orderData.cfEnv === 'PROD') ? 'production' : 'sandbox';
-        const cashfree = window.Cashfree({ mode: cfMode });
-
-        cashfree.checkout({
-          paymentSessionId: orderData.paymentSessionId,
-          redirectTarget: "_modal",
-        }).then(async (result) => {
-          if (result.error) {
-            console.warn('Cashfree payment dismissed/error:', result.error);
-            showToast(result.error?.message || 'Payment closed or cancelled.', 'warning');
-            setSubmitting(false);
-            return;
-          }
-          if (result.redirect) {
-            return;
-          }
-
-          // Modal checkout finished: verify order and book slot
-          try {
-            const verifyRes = await axios.post(
-              `${import.meta.env.VITE_API_URL || ""}/api/payment/verify-and-join`,
-              {
-                order_id: orderData.orderId,
-                tournamentId: tournament.id,
-                amount: activeEntryFee,
-                teamName: effectiveTeamName,
-                slotNumber: selectedSlot,
-                players: submittedPlayers,
-                joinMode,
-              },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            if (verifyRes.data.status) {
-              showToast(verifyRes.data.message || `Payment verified! You are locked in Slot #${selectedSlot}!`, 'success', 'Slot Confirmed');
-              setRegisteredSuccessData({
-                slot: selectedSlot,
-                teamName: effectiveTeamName,
-                joinMode,
-                feePaid: activeEntryFee,
-              });
-            } else {
-              showToast(verifyRes.data.message || 'Payment verified but slot booking failed. Please check your wallet.', 'error');
-            }
-          } catch (vErr) {
-            console.error('Verify error:', vErr);
-            showToast(vErr.response?.data?.message || 'Error confirming slot.', 'error');
-          } finally {
-            setSubmitting(false);
-          }
-        });
-        return;
-      }
-
-      // 2. FALLBACK TO RAZORPAY IF CASHFREE SESSION NOT AVAILABLE
-      const rzpKey = orderData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_WyypEVHeheZwJ5';
-      if (!window.Razorpay) {
-        showToast('Payment gateway is loading. Please try again in a few seconds.', 'error', 'Gateway Error');
-        setSubmitting(false);
-        return;
-      }
-
-      const options = {
-        key: rzpKey,
-        amount: orderData.amount,
-        currency: orderData.currency || 'INR',
-        name: 'LocalEsport Arena',
-        description: `Direct Entry for ${tournament.title} (Slot #${selectedSlot}${joinMode === 'random' ? ' Random Fill' : ''})`,
-        order_id: orderData.orderId,
-        prefill: {
-          name: user?.name || players[0].inGameName,
-          email: user?.email || '',
-          contact: players[0].phone || user?.phone || '',
-        },
-        theme: {
-          color: '#06b6d4',
-          backdrop_color: '#09090d',
-        },
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: 'UPI (Google Pay, PhonePe, Paytm, QR)',
-                instruments: [
-                  { method: 'upi', flows: ['intent', 'qr'] },
-                ],
-              },
-              other: {
-                name: 'Netbanking / Cards / Wallets',
-                instruments: [
-                  { method: 'card' },
-                  { method: 'netbanking' },
-                  { method: 'wallet' },
-                ],
-              },
-            },
-            sequence: ['block.upi', 'block.other'],
-            preferences: {
-              show_default_blocks: true,
-            },
-          },
-        },
-        handler: async function (paymentResponse) {
-          try {
-            const verifyRes = await axios.post(
-              `${import.meta.env.VITE_API_URL || ""}/api/payment/verify-and-join`,
-              {
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature,
-                tournamentId: tournament.id,
-                amount: activeEntryFee,
-                teamName: effectiveTeamName,
-                slotNumber: selectedSlot,
-                players: submittedPlayers,
-                joinMode,
-              },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            if (verifyRes.data.status) {
-              showToast(verifyRes.data.message || `Payment verified! You are locked in Slot #${selectedSlot}!`, 'success', 'Slot Confirmed');
-              setRegisteredSuccessData({
-                slot: selectedSlot,
-                teamName: effectiveTeamName,
-                joinMode,
-                feePaid: activeEntryFee,
-              });
-            } else {
-              showToast(verifyRes.data.message || 'Payment verified but slot booking failed. Please contact support.', 'error');
-            }
-          } catch (verifyErr) {
-            console.error('Verify error:', verifyErr);
-            showToast(verifyErr.response?.data?.message || 'Error confirming slot. Please check your transaction.', 'error');
-          } finally {
-            setSubmitting(false);
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setSubmitting(false);
-          },
-        },
+      const payload = {
+        teamName: effectiveTeamName,
+        slotNumber: selectedSlot,
+        players: submittedPlayers,
+        joinMode,
+        paymentMethod: 'free',
       };
 
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function (resp) {
-        console.error('Payment failed:', resp.error);
-        showToast(resp.error?.description || 'Payment failed or was cancelled.', 'error', 'Payment Failed');
-        setSubmitting(false);
-      });
-      rzp.open();
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL || ""}/api/tournaments/${tournament.id}/join`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (res.data.status) {
+        showToast(res.data.message || `Slot #${selectedSlot} locked successfully! Free Entry Confirmed.`, 'success', 'Slot Confirmed');
+        setRegisteredSuccessData({
+          slot: selectedSlot,
+          teamName: res.data.data?.teamName || effectiveTeamName,
+          joinMode,
+          feePaid: 0,
+        });
+        if (onRegistrationSuccess) onRegistrationSuccess(res.data);
+      } else {
+        showToast(res.data.message || 'Registration failed. Try again.', 'error');
+      }
     } catch (err) {
-      console.error('Direct Checkout Error:', err);
-      showToast(err.response?.data?.message || err.message || 'Payment initiation failed. Please check your internet or try wallet payment.', 'error');
+      showToast(err.response?.data?.message || 'Registration failed. Try again.', 'error');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -501,19 +308,34 @@ export default function SquadRegisterModal({
               </div>
             </div>
           ) : (
-            /* STANDARD REGISTRATION FORM */
+            /* STANDARD 100% FREE REGISTRATION FORM */
             <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto overscroll-contain">
+              {/* BOOYAH & REFERRAL PROMOTION BANNER */}
+              <div className="p-3 bg-gradient-to-r from-emerald-500/15 via-amber-500/15 to-emerald-500/15 border border-emerald-500/40 rounded-xl space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase text-emerald-400 flex items-center space-x-1.5">
+                    <span>⚡ 100% FREE ENTRY MATCH</span>
+                  </span>
+                  <span className="text-xs font-mono font-black text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+                    ENTRY: FREE
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-300 font-medium">
+                  🏆 Win Booyah to earn <strong className="text-emerald-400 font-bold">₹{tournament.prize_pool || '50'} Real Cash</strong> | 🎁 Refer friends to get <strong className="text-amber-400 font-bold">₹10 Cash</strong> in your wallet per friend!
+                </p>
+              </div>
+
               {/* Prize Pool & Fee Pill */}
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="bg-[#121218] p-2.5 rounded-xl border border-zinc-800">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 block">Total Prize Pool</span>
-                  <span className="text-sm sm:text-base font-black text-amber-300 font-mono">₹{tournament.prize_pool}</span>
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 block">Booyah Winner Prize</span>
+                  <span className="text-sm sm:text-base font-black text-amber-300 font-mono">₹{tournament.prize_pool || '50.00'}</span>
                 </div>
                 <div className="bg-[#121218] p-2.5 rounded-xl border border-zinc-800">
                   <span className="text-[10px] uppercase font-bold text-zinc-500 block">
-                    {joinMode === 'random' ? 'Your Entry Share' : 'Squad Entry Fee'}
+                    Tournament Entry
                   </span>
-                  <span className="text-sm sm:text-base font-black text-white font-mono">₹{activeEntryFee.toFixed(2)}</span>
+                  <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">100% FREE</span>
                 </div>
               </div>
 
@@ -751,144 +573,37 @@ export default function SquadRegisterModal({
                 ))}
               </div>
 
-              {/* PAYMENT METHOD SELECTOR */}
-              <div className="space-y-2 pt-2 border-t border-zinc-800">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                  Choose Payment Method
-                </label>
-
-                {/* Option A: Direct Online Payment (UPI / QR / Cards) */}
-                <div
-                  onClick={() => setPaymentMethod('razorpay')}
-                  className={`p-3 rounded-xl border transition cursor-pointer flex items-center justify-between ${
-                    paymentMethod === 'razorpay'
-                      ? 'bg-cyan-950/40 border-cyan-500/80 shadow-md shadow-cyan-950/30'
-                      : 'bg-[#121218] border-zinc-800 hover:border-zinc-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      paymentMethod === 'razorpay' ? 'border-cyan-400 bg-cyan-500' : 'border-zinc-600'
-                    }`}>
-                      {paymentMethod === 'razorpay' && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs font-bold text-white">Direct Online Checkout</span>
-                        <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] font-black uppercase">
-                          INSTANT
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">
-                        Pay ₹{activeEntryFee.toFixed(2)} directly via Google Pay, PhonePe, Paytm UPI, QR, or Card
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right flex flex-col items-end">
-                    <span className="text-xs font-black text-white font-mono">₹{activeEntryFee.toFixed(2)}</span>
-                    <span className="text-[9px] text-zinc-500">No pre-load needed</span>
-                  </div>
+              {/* FREE ENTRY BADGE & PERKS */}
+              <div className="p-3 bg-[#121218] border border-zinc-800 rounded-xl space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-zinc-300 flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Free Open Entry (No Payment Needed)</span>
+                  </span>
+                  <span className="text-xs font-black font-mono text-emerald-400">
+                    ₹0.00 FREE
+                  </span>
                 </div>
-
-                {/* Option B: Pay from Wallet Balance */}
-                <div
-                  onClick={() => {
-                    if (hasEnoughBalance) {
-                      setPaymentMethod('wallet');
-                    }
-                  }}
-                  className={`p-3 rounded-xl border transition ${
-                    hasEnoughBalance ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'
-                  } flex items-center justify-between ${
-                    paymentMethod === 'wallet'
-                      ? 'bg-emerald-950/40 border-emerald-500/80 shadow-md shadow-emerald-950/30'
-                      : 'bg-[#121218] border-zinc-800'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      paymentMethod === 'wallet' ? 'border-emerald-400 bg-emerald-500' : 'border-zinc-600'
-                    }`}>
-                      {paymentMethod === 'wallet' && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs font-bold text-white">Use Wallet Earnings</span>
-                        {hasEnoughBalance ? (
-                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black uppercase">
-                            READY
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-500 text-[9px] font-bold uppercase">
-                            INSUFFICIENT
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">
-                        Deduct from your tournament prize winnings & earnings
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-mono font-bold text-emerald-400 block">
-                      ₹{walletBalance.toFixed(2)}
-                    </span>
-                    <span className="text-[9px] text-zinc-500">Available</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Prohibited State Alert */}
-              {isRestrictedState && activeEntryFee > 0 && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-start space-x-2">
-                  <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  </svg>
-                  <div>
-                    <strong className="block text-red-200">State Legal Restriction ({user.state})</strong>
-                    <span className="text-[11px] leading-relaxed">Under Entry 34 of the State List, residents of Assam, Odisha, Telangana, Andhra Pradesh, Nagaland, and Sikkim are prohibited from participating in real-money contests.</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Compliance & 18+ agreement notice */}
-              <div className="flex items-center justify-center space-x-1.5 text-[10px] text-zinc-500 pt-1 text-center">
-                <svg className="w-3 h-3 text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                <span>
-                  18+ only. By joining, you confirm compliance with our{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-zinc-300 underline hover:text-white font-medium">
-                    Terms & Fair Play Rules
-                  </a>.
-                </span>
+                <p className="text-[10px] text-zinc-500">
+                  Room ID & Password will unlock in 'My Matches' 15 minutes before the match starts.
+                </p>
               </div>
 
               {/* Submit Action Button */}
               <button
                 type="submit"
-                disabled={submitting || (!selectedSlot && joinMode !== 'random') || alreadyRegistered || (isRestrictedState && activeEntryFee > 0)}
-                className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                  paymentMethod === 'razorpay'
-                    ? 'bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-500 hover:brightness-110 text-black'
-                    : 'bg-silver-gradient hover:brightness-110 text-black'
-                }`}
+                disabled={submitting || (!selectedSlot && joinMode !== 'random') || alreadyRegistered}
+                className="w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:brightness-110 text-black shadow-[0_4px_20px_rgba(16,185,129,0.3)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {alreadyRegistered
                   ? `Already Registered (Slot #${mySlotNumber || '1'})`
-                  : (isRestrictedState && activeEntryFee > 0)
-                  ? 'Contests Restricted in Your State'
                   : submitting
-                  ? 'Processing Registration...'
-                  : !selectedSlot
+                  ? 'Locking Your Slot...'
+                  : !selectedSlot && joinMode !== 'random'
                   ? 'Select an Available Slot Above'
                   : joinMode === 'random'
-                  ? paymentMethod === 'razorpay'
-                    ? `Pay ₹${activeEntryFee.toFixed(2)} via UPI & Auto-Match Slot #${selectedSlot}`
-                    : `Pay ₹${activeEntryFee.toFixed(2)} from Wallet & Auto-Match Slot #${selectedSlot}`
-                  : paymentMethod === 'razorpay'
-                  ? `Pay ₹${activeEntryFee.toFixed(2)} via UPI & Join Slot #${selectedSlot}`
-                  : `Pay ₹${activeEntryFee.toFixed(2)} from Wallet & Join Slot #${selectedSlot}`}
+                  ? `🔥 Join Free & Auto-Match Slot #${selectedSlot}`
+                  : `🔥 Join Free & Lock Slot #${selectedSlot}`}
               </button>
             </form>
           )}

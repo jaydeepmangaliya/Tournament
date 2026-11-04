@@ -188,7 +188,7 @@ export default function Home() {
     },
     {
       q: 'Can regular players also refer friends and earn?',
-      a: 'Yes. Every player receives a REF-XXXX code. When your referred friend participates in paid tournaments, you earn a 5% bonus credit directly in your wallet, which can be withdrawn to UPI or used for tournament entries.',
+      a: 'Yes! Every player receives a personal referral link and code. When your friend signs up with your link, you instantly get ₹10.00 cash credited to your wallet. You can withdraw your referral earnings directly to your UPI ID.',
     },
     {
       q: 'What is the withdrawal process and how long does it take?',
@@ -645,27 +645,27 @@ export default function Home() {
                   Player Ecosystem
                 </span>
                 <h3 className="text-2xl font-black text-white mt-2">
-                  Compete in Daily Tournaments & Win Direct UPI Cash
+                  100% Free Entry Tournaments • Win Booyah & Earn Real Cash
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-400 mt-1 leading-relaxed">
-                  Join with your wallet balance. Win placement prizes and per-kill bounty cash. Plus, refer friends to earn passive bonuses every time they compete.
+                  Zero entry fees! Compete in daily custom rooms, win Booyah to earn ₹50 cash winnings, and refer squad mates to get ₹10 directly in your wallet per friend.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
                 <div className="bg-[#121218] p-5 rounded-2xl border border-zinc-800 space-y-2">
-                  <span className="text-xs font-mono font-black text-zinc-500">BOUNTIES</span>
-                  <h4 className="text-sm font-bold text-white">Kill Bounty Multipliers</h4>
+                  <span className="text-xs font-mono font-black text-zinc-500">BOOYAH CASH</span>
+                  <h4 className="text-sm font-bold text-white">Win Booyah & Earn ₹50</h4>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Earn ₹10 to ₹25 cash on every elimination you secure, credited even if your team does not take 1st place.
+                    Take 1st place in Free Fire or PUBG custom rooms and get ₹50 cash prize credited directly to your withdrawable wallet.
                   </p>
                 </div>
 
                 <div className="bg-[#121218] p-5 rounded-2xl border border-zinc-800 space-y-2">
                   <span className="text-xs font-mono font-black text-zinc-500">REFERRALS</span>
-                  <h4 className="text-sm font-bold text-white">P2P Referral Rewards</h4>
+                  <h4 className="text-sm font-bold text-white">Refer & Earn ₹10</h4>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Invite squad mates with your REF-XXXX code. Earn a 5% bonus on every ticket purchased by your referrals.
+                    Invite squad mates with your referral link. Earn ₹10 cash instantly in your wallet for every friend who registers.
                   </p>
                 </div>
 

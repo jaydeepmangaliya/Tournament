@@ -108,5 +108,44 @@ exports.verifyAndJoinTournament = async (req, res) => {
     }
 };
 
+exports.getUpiInfo = async (req, res) => {
+    try {
+        const result = await paymentService.getUpiInfo(req);
+        if (!result.status) {
+            return res.status(400).json(result);
+        }
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("Error in getUpiInfo controller:", error);
+        res.status(500).json({ status: false, message: error.message });
+    }
+};
+
+exports.directUpiJoin = async (req, res) => {
+    try {
+        const result = await paymentService.directUpiJoin(req);
+        if (!result.status) {
+            return res.status(400).json(result);
+        }
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("Error in directUpiJoin controller:", error);
+        res.status(500).json({ status: false, message: error.message });
+    }
+};
+
+exports.directUpiWalletTopup = async (req, res) => {
+    try {
+        const result = await paymentService.directUpiWalletTopup(req);
+        if (!result.status) {
+            return res.status(400).json(result);
+        }
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("Error in directUpiWalletTopup controller:", error);
+        res.status(500).json({ status: false, message: error.message });
+    }
+};
+
 // Export the middleware for use in routes
 exports.authenticateToken = authenticateToken;
