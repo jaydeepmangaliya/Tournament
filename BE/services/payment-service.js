@@ -83,7 +83,17 @@ paymentService.createOrder = async (req) => {
         if (isCashfreeConfigured()) {
             const cfOrderId = `cf_${tournamentId ? 'tourn_' + tournamentId : 'wallet'}_${userId}_${Date.now()}`;
             const baseUrl = getCashfreeBaseUrl();
-            const clientOrigin = process.env.CLIENT_URL || 'https://localesport.in';
+            let clientOrigin = (process.env.CLIENT_URL || '').trim();
+            if (!clientOrigin || clientOrigin.includes('<') || clientOrigin.includes('YOUR') || clientOrigin.includes('localhost')) {
+                const reqHost = req.headers['x-forwarded-host'] || req.headers.host;
+                if (reqHost && !reqHost.includes('localhost') && !reqHost.includes('<')) {
+                    const proto = req.headers['x-forwarded-proto'] || 'https';
+                    clientOrigin = `${proto}://${reqHost}`;
+                } else {
+                    clientOrigin = 'https://localesport.in';
+                }
+            }
+            clientOrigin = clientOrigin.replace(/\/+$/, '');
 
             const cfPayload = {
                 order_id: cfOrderId,
