@@ -56,6 +56,11 @@ walletService.addFunds = async (userId, amount) => {
     }
 
     await db.promise().query(
+      `INSERT IGNORE INTO wallets (user_id, deposit_balance, winning_balance, referral_balance) VALUES (?, 0, 0, 0)`,
+      [userId]
+    );
+
+    await db.promise().query(
       `UPDATE wallets SET deposit_balance = deposit_balance + ? WHERE user_id = ?`,
       [numAmount, userId]
     );
