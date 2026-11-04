@@ -21,8 +21,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || '⚡ LocalEsport Match Alert';
   const options = {
     body: data.body || 'Your tournament match has an update. Tap to view room credentials.',
-    icon: data.icon || '/favicon.svg',
-    badge: data.badge || '/favicon.svg',
+    icon: data.icon || '/icon-192.png',
+    badge: data.badge || '/icon-192.png',
     tag: data.tag || `localesport-notif-${Date.now()}`,
     data: data.data || { url: data.url || '/yourmatches' },
     requireInteraction: true,

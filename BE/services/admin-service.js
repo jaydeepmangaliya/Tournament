@@ -533,8 +533,8 @@ adminService.declareMatchResults = async (tournamentId, body) => {
       notificationService.sendToTournamentParticipants(tournamentId, {
         title: `👑 Winner Declared! Match #${tournamentId}`,
         body: `Match: ${tournament.title}\nWinner: ${topWinner}. Tap to see full match results and prize distributions!`,
-        icon: '/favicon.svg',
-        badge: '/favicon.svg',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
         tag: `match-winner-${tournamentId}`,
         url: '/yourmatches',
         data: { url: '/yourmatches', tournamentId }

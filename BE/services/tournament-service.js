@@ -876,8 +876,8 @@ tournamentService.updateRoomCredentials = async (tournamentId, { roomId, roomPas
       notificationService.sendToTournamentParticipants(tournamentId, {
         title: `⚡ Room Ready! ${tourneyTitle}`,
         body: `Room ID: ${roomId.trim()} | Pass: ${roomPassword.trim()}\nMatch starts in <10 minutes. Tap to view your slot!`,
-        icon: '/favicon.svg',
-        badge: '/favicon.svg',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
         tag: `match-room-${tournamentId}`,
         url: '/yourmatches',
         data: { url: '/yourmatches', tournamentId }

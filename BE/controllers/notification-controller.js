@@ -39,8 +39,8 @@ exports.sendTestNotification = async (req, res) => {
     const payload = {
       title: '🔔 LocalEsport Test Notification',
       body: 'Push alerts are working perfectly on your device! You will receive instant Room ID & Password alerts.',
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       tag: 'test-push-notification',
       url: '/yourmatches',
       data: { url: '/yourmatches' },
@@ -57,3 +57,4 @@ exports.sendTestNotification = async (req, res) => {
     res.status(500).json({ status: false, message: error.message });
   }
 };
+
