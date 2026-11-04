@@ -321,7 +321,7 @@ export default function SquadRegisterModal({
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-300 font-medium">
-                  🏆 Win Booyah to earn <strong className="text-emerald-400 font-bold">₹{tournament.prize_pool || '50'} Real Cash</strong> | 🎁 Refer friends to get <strong className="text-amber-400 font-bold">₹10 Cash</strong> in your wallet per friend!
+                  🏆 Win Booyah to earn <strong className="text-emerald-400 font-bold">₹{Math.min(70, tournament.first_prize || (tournament.prize_pool > 70 ? 50 : (tournament.prize_pool || 50)))} Real Cash</strong> | 🎁 Refer friends to get <strong className="text-amber-400 font-bold">₹10 Cash</strong> in your wallet per friend!
                 </p>
               </div>
 
@@ -329,7 +329,9 @@ export default function SquadRegisterModal({
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="bg-[#121218] p-2.5 rounded-xl border border-zinc-800">
                   <span className="text-[10px] uppercase font-bold text-zinc-500 block">Booyah Winner Prize</span>
-                  <span className="text-sm sm:text-base font-black text-amber-300 font-mono">₹{tournament.prize_pool || '50.00'}</span>
+                  <span className="text-sm sm:text-base font-black text-amber-300 font-mono">
+                    ₹{Math.min(70, tournament.first_prize || (tournament.prize_pool > 70 ? 50 : (tournament.prize_pool || 50)))}.00
+                  </span>
                 </div>
                 <div className="bg-[#121218] p-2.5 rounded-xl border border-zinc-800">
                   <span className="text-[10px] uppercase font-bold text-zinc-500 block">

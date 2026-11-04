@@ -76,14 +76,35 @@ tournamentService.getTournaments = async (filters = {}, userId = null) => {
         ? t.booked_slots_str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
         : [];
 
+      // Calibrate Free Entry & Prize Cap <= ₹70 for all matches
+      let prizePool = parseFloat(t.prize_pool || 0);
+      let firstPrize = parseFloat(t.first_prize || 0);
+      let secondPrize = parseFloat(t.second_prize || 0);
+      let thirdPrize = 0.00;
+
+      if (t.format === '1v1') {
+        prizePool = 50.00;
+        firstPrize = 50.00;
+        secondPrize = 0.00;
+      } else if (t.format === '2v2' || t.format === '4v4') {
+        prizePool = 70.00;
+        firstPrize = 70.00;
+        secondPrize = 0.00;
+      } else {
+        // Battle Royale (Solo, Duo, Squad): Max ₹70 total (Booyah = ₹50, 2nd Place = ₹20)
+        prizePool = 70.00;
+        firstPrize = 50.00;
+        secondPrize = 20.00;
+      }
+
       return {
         ...t,
-        entry_fee: parseFloat(t.entry_fee),
-        prize_pool: parseFloat(t.prize_pool),
-        per_kill_prize: parseFloat(t.per_kill_prize || 0),
-        first_prize: parseFloat(t.first_prize || 0),
-        second_prize: parseFloat(t.second_prize || 0),
-        third_prize: parseFloat(t.third_prize || 0),
+        entry_fee: 0.00,
+        prize_pool: prizePool,
+        per_kill_prize: 0.00,
+        first_prize: firstPrize,
+        second_prize: secondPrize,
+        third_prize: thirdPrize,
         filled_teams: filledTeams,
         remaining_teams: remainingTeams,
         filled_players: parseInt(t.filled_players || 0),
@@ -158,16 +179,35 @@ tournamentService.getTournamentById = async (tournamentId, userId = null) => {
       ) || null;
     }
 
+    // Calibrate Free Entry & Prize Cap <= ₹70
+    let prizePool = parseFloat(tournament.prize_pool || 0);
+    let firstPrize = parseFloat(tournament.first_prize || 0);
+    let secondPrize = parseFloat(tournament.second_prize || 0);
+
+    if (tournament.format === '1v1') {
+      prizePool = 50.00;
+      firstPrize = 50.00;
+      secondPrize = 0.00;
+    } else if (tournament.format === '2v2' || tournament.format === '4v4') {
+      prizePool = 70.00;
+      firstPrize = 70.00;
+      secondPrize = 0.00;
+    } else {
+      prizePool = 70.00;
+      firstPrize = 50.00;
+      secondPrize = 20.00;
+    }
+
     return {
       status: true,
       data: {
         ...tournament,
-        entry_fee: parseFloat(tournament.entry_fee),
-        prize_pool: parseFloat(tournament.prize_pool),
-        per_kill_prize: parseFloat(tournament.per_kill_prize || 0),
-        first_prize: parseFloat(tournament.first_prize || 0),
-        second_prize: parseFloat(tournament.second_prize || 0),
-        third_prize: parseFloat(tournament.third_prize || 0),
+        entry_fee: 0.00,
+        prize_pool: prizePool,
+        per_kill_prize: 0.00,
+        first_prize: firstPrize,
+        second_prize: secondPrize,
+        third_prize: 0.00,
         total_teams: tournament.total_teams,
         filled_teams: teams.length,
         remaining_teams: Math.max(0, tournament.total_teams - teams.length),

@@ -252,13 +252,13 @@ ON DUPLICATE KEY UPDATE `user_id`=1;
 INSERT INTO `tournaments` 
 (`id`, `game_id`, `title`, `match_type`, `format`, `map_name`, `total_slots`, `total_teams`, `players_per_team`, `entry_fee`, `prize_pool`, `per_kill_prize`, `first_prize`, `second_prize`, `third_prize`, `match_start_at`, `status`) 
 VALUES
-(1, 1, 'Free Fire 1v1 Solo Duel', 'clash', '1v1', 'Bermuda', 2, 2, 1, 30.00, 45.00, 0.00, 45.00, 0.00, 0.00, DATE_ADD(NOW(), INTERVAL 1 HOUR), 'open'),
-(2, 1, 'Free Fire 2v2 Duo Clash Showdown', 'clash', '2v2', 'Bermuda', 4, 2, 2, 50.00, 70.00, 0.00, 70.00, 0.00, 0.00, DATE_ADD(NOW(), INTERVAL 90 MINUTE), 'open'),
-(3, 1, 'Free Fire 4v4 Clash Squad Championship', 'clash', '4v4', 'Kalahari', 8, 2, 4, 100.00, 140.00, 0.00, 140.00, 0.00, 0.00, DATE_ADD(NOW(), INTERVAL 2 HOUR), 'open'),
-(4, 1, 'Free Fire 48-Player BR Squad Mega War', 'battle_royale', 'squad', 'Bermuda', 48, 12, 4, 120.00, 1000.00, 0.00, 600.00, 300.00, 100.00, DATE_ADD(NOW(), INTERVAL 3 HOUR), 'open'),
-(5, 1, 'Free Fire 48-Player BR Solo Survival', 'battle_royale', 'solo', 'Purgatory', 48, 48, 1, 25.00, 840.00, 0.00, 500.00, 220.00, 120.00, DATE_ADD(NOW(), INTERVAL 2 HOUR), 'open'),
-(6, 1, 'Free Fire 48-Player BR Squad High Roller', 'battle_royale', 'squad', 'Kalahari', 48, 12, 4, 200.00, 1680.00, 0.00, 1000.00, 480.00, 200.00, DATE_ADD(NOW(), INTERVAL 4 HOUR), 'open'),
-(7, 1, 'Free Fire 48-Player BR Duo War', 'battle_royale', 'duo', 'Bermuda', 48, 24, 2, 50.00, 840.00, 0.00, 500.00, 220.00, 120.00, DATE_ADD(NOW(), INTERVAL 3 HOUR), 'open')
+(1, 1, 'Free Fire 1v1 Solo Duel', 'clash', '1v1', 'Bermuda', 2, 2, 1, 0.00, 50.00, 0.00, 50.00, 0.00, 0.00, DATE_ADD(NOW(), INTERVAL 1 HOUR), 'open'),
+(2, 1, 'Free Fire 2v2 Duo Clash Showdown', 'clash', '2v2', 'Bermuda', 4, 2, 2, 0.00, 70.00, 0.00, 70.00, 0.00, 0.00, DATE_ADD(NOW(), INTERVAL 90 MINUTE), 'open'),
+(3, 1, 'Free Fire 4v4 Clash Squad Championship', 'clash', '4v4', 'Kalahari', 8, 2, 4, 0.00, 70.00, 0.00, 70.00, 0.00, 0.00, DATE_ADD(NOW(), INTERVAL 2 HOUR), 'open'),
+(4, 1, 'Free Fire 48-Player BR Squad Mega War', 'battle_royale', 'squad', 'Bermuda', 48, 12, 4, 0.00, 70.00, 0.00, 50.00, 20.00, 0.00, DATE_ADD(NOW(), INTERVAL 3 HOUR), 'open'),
+(5, 1, 'Free Fire 48-Player BR Solo Survival', 'battle_royale', 'solo', 'Purgatory', 48, 48, 1, 0.00, 70.00, 0.00, 50.00, 20.00, 0.00, DATE_ADD(NOW(), INTERVAL 2 HOUR), 'open'),
+(6, 1, 'Free Fire 48-Player BR Squad High Roller', 'battle_royale', 'squad', 'Kalahari', 48, 12, 4, 0.00, 70.00, 0.00, 50.00, 20.00, 0.00, DATE_ADD(NOW(), INTERVAL 4 HOUR), 'open'),
+(7, 1, 'Free Fire 48-Player BR Duo War', 'battle_royale', 'duo', 'Bermuda', 48, 24, 2, 0.00, 70.00, 0.00, 50.00, 20.00, 0.00, DATE_ADD(NOW(), INTERVAL 3 HOUR), 'open')
 ON DUPLICATE KEY UPDATE 
   `game_id` = VALUES(`game_id`),
   `title` = VALUES(`title`),
