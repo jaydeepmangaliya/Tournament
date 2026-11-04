@@ -236,7 +236,7 @@ export default function SquadRegisterModal({
       return;
     }
 
-    // PATH 2: DIRECT ONLINE CHECKOUT (RAZORPAY: UPI, GPAY, PHONEPE, QR, CARDS)
+    // PATH 2: DIRECT ONLINE CHECKOUT (CASHFREE: UPI, GPAY, PHONEPE, QR, NETBANKING)
     setSubmitting(true);
     try {
       const orderRes = await axios.post(
@@ -245,6 +245,8 @@ export default function SquadRegisterModal({
           amount: activeEntryFee,
           tournamentId: tournament.id,
           tournamentName: tournament.title,
+          customerPhone: submittedPlayers[0]?.phone || user?.phone || '',
+          customerName: submittedPlayers[0]?.playerName || user?.name || '',
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -254,6 +256,63 @@ export default function SquadRegisterModal({
         throw new Error(orderRes.data?.message || 'Failed to initialize payment gateway.');
       }
 
+      // 1. CASHFREE CHECKOUT (OFFICIAL MODAL)
+      if (orderData.paymentSessionId && window.Cashfree) {
+        const cfMode = (orderData.cfEnv === 'PRODUCTION' || orderData.cfEnv === 'PROD') ? 'production' : 'sandbox';
+        const cashfree = window.Cashfree({ mode: cfMode });
+
+        cashfree.checkout({
+          paymentSessionId: orderData.paymentSessionId,
+          redirectTarget: "_modal",
+        }).then(async (result) => {
+          if (result.error) {
+            console.warn('Cashfree payment dismissed/error:', result.error);
+            showToast(result.error?.message || 'Payment closed or cancelled.', 'warning');
+            setSubmitting(false);
+            return;
+          }
+          if (result.redirect) {
+            return;
+          }
+
+          // Modal checkout finished: verify order and book slot
+          try {
+            const verifyRes = await axios.post(
+              `${import.meta.env.VITE_API_URL || ""}/api/payment/verify-and-join`,
+              {
+                order_id: orderData.orderId,
+                tournamentId: tournament.id,
+                amount: activeEntryFee,
+                teamName: effectiveTeamName,
+                slotNumber: selectedSlot,
+                players: submittedPlayers,
+                joinMode,
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (verifyRes.data.status) {
+              showToast(verifyRes.data.message || `Payment verified! You are locked in Slot #${selectedSlot}!`, 'success', 'Slot Confirmed');
+              setRegisteredSuccessData({
+                slot: selectedSlot,
+                teamName: effectiveTeamName,
+                joinMode,
+                feePaid: activeEntryFee,
+              });
+            } else {
+              showToast(verifyRes.data.message || 'Payment verified but slot booking failed. Please check your wallet.', 'error');
+            }
+          } catch (vErr) {
+            console.error('Verify error:', vErr);
+            showToast(vErr.response?.data?.message || 'Error confirming slot.', 'error');
+          } finally {
+            setSubmitting(false);
+          }
+        });
+        return;
+      }
+
+      // 2. FALLBACK TO RAZORPAY IF CASHFREE SESSION NOT AVAILABLE
       const rzpKey = orderData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_WyypEVHeheZwJ5';
       if (!window.Razorpay) {
         showToast('Payment gateway is loading. Please try again in a few seconds.', 'error', 'Gateway Error');

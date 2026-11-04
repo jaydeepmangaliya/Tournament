@@ -4,14 +4,34 @@ const db = require('../connection');
 const crypto = require('crypto');
 const walletService = require('./wallet-service');
 
-// Initialize Razorpay instance
+// Initialize Razorpay instance (fallback)
 const razorpayInstance = new razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_fallback',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_fallback'
 });
 
+// Cashfree Gateway Helper Functions
+const isCashfreeConfigured = () => {
+    return Boolean(process.env.CASHFREE_APP_ID && process.env.CASHFREE_SECRET_KEY);
+};
+
+const getCashfreeBaseUrl = () => {
+    return (process.env.CASHFREE_ENV || 'TEST').toUpperCase() === 'PRODUCTION'
+        ? 'https://api.cashfree.com/pg'
+        : 'https://sandbox.cashfree.com/pg';
+};
+
+const getCashfreeHeaders = () => {
+    return {
+        'x-client-id': process.env.CASHFREE_APP_ID,
+        'x-client-secret': process.env.CASHFREE_SECRET_KEY,
+        'x-api-version': process.env.CASHFREE_API_VERSION || '2023-08-01',
+        'Content-Type': 'application/json'
+    };
+};
+
 /**
- * Timing-safe HMAC SHA-256 signature verification to prevent timing attack side-channel exploits.
+ * Timing-safe HMAC SHA-256 signature verification for Razorpay
  */
 function verifyRazorpaySignature(orderId, paymentId, signature, secret) {
     if (!orderId || !paymentId || !signature || !secret) {
@@ -31,9 +51,19 @@ function verifyRazorpaySignature(orderId, paymentId, signature, secret) {
     return crypto.timingSafeEqual(expectedBuf, actualBuf);
 }
 
+/**
+ * Create Order: Primary Gateway = Cashfree (fallback to Razorpay if Cashfree unconfigured)
+ */
 paymentService.createOrder = async (req) => {
     try {
-        const { amount, currency = 'INR', tournamentId = 0, tournamentName = 'Tournament / Wallet Top-up' } = req.body;
+        const {
+            amount,
+            currency = 'INR',
+            tournamentId = 0,
+            tournamentName = 'Tournament / Wallet Top-up',
+            customerPhone,
+            customerName
+        } = req.body;
 
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount < 10 || numAmount > 50000) {
@@ -43,9 +73,68 @@ paymentService.createOrder = async (req) => {
             };
         }
 
-        // Convert amount to paise (Razorpay expects amount in smallest currency unit)
-        const amountInPaise = Math.round(numAmount * 100);
+        const userId = req.user?.id || 'guest';
+        const userEmail = req.user?.email || 'player@localesport.in';
+        let rawPhone = customerPhone || req.user?.phone || '9999999999';
+        const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10) || '9999999999';
+        const effectiveName = customerName || req.user?.name || req.user?.username || 'Player';
 
+        // 1. PRIMARY GATEWAY: CASHFREE PAYMENTS
+        if (isCashfreeConfigured()) {
+            const cfOrderId = `cf_${tournamentId ? 'tourn_' + tournamentId : 'wallet'}_${userId}_${Date.now()}`;
+            const baseUrl = getCashfreeBaseUrl();
+            const clientOrigin = process.env.CLIENT_URL || 'https://localesport.in';
+
+            const cfPayload = {
+                order_id: cfOrderId,
+                order_amount: parseFloat(numAmount.toFixed(2)),
+                order_currency: 'INR',
+                customer_details: {
+                    customer_id: String(`user_${userId}`),
+                    customer_phone: cleanPhone,
+                    customer_email: userEmail,
+                    customer_name: effectiveName
+                },
+                order_meta: {
+                    return_url: `${clientOrigin}/yourmatches?order_id={order_id}`
+                },
+                order_tags: {
+                    tournamentId: String(tournamentId || 0),
+                    userId: String(userId)
+                }
+            };
+
+            const cfResponse = await fetch(`${baseUrl}/orders`, {
+                method: 'POST',
+                headers: getCashfreeHeaders(),
+                body: JSON.stringify(cfPayload)
+            });
+
+            const cfData = await cfResponse.json();
+
+            if (cfResponse.ok && cfData.payment_session_id) {
+                console.log(`[Cashfree] Created order ${cfOrderId} for ₹${numAmount}`);
+                return {
+                    status: true,
+                    data: {
+                        gateway: 'cashfree',
+                        orderId: cfData.order_id,
+                        paymentSessionId: cfData.payment_session_id,
+                        amount: cfData.order_amount,
+                        currency: cfData.order_currency,
+                        cfEnv: (process.env.CASHFREE_ENV || 'TEST').toUpperCase(),
+                        receipt: cfData.order_id
+                    }
+                };
+            } else {
+                console.warn('[Cashfree] Order creation error:', cfData);
+                // If Cashfree returns error, throw so it can be logged or fall back
+                throw new Error(cfData.message || 'Cashfree order creation failed');
+            }
+        }
+
+        // 2. FALLBACK GATEWAY: RAZORPAY
+        const amountInPaise = Math.round(numAmount * 100);
         const options = {
             amount: amountInPaise,
             currency: currency,
@@ -53,20 +142,16 @@ paymentService.createOrder = async (req) => {
             notes: {
                 tournamentId: String(tournamentId || 0),
                 tournamentName: String(tournamentName || 'Wallet Top-up').substring(0, 40),
-                userId: String(req.user?.id || 'guest'),
-                userEmail: req.user?.email || 'guest@example.com'
+                userId: String(userId),
+                userEmail: userEmail
             }
         };
 
         const order = await razorpayInstance.orders.create(options);
-
-        if (!order || !order.id) {
-            return { status: false, error: "Order creation failed from payment gateway." };
-        }
-
         return {
             status: true,
             data: {
+                gateway: 'razorpay',
                 orderId: order.id,
                 amount: order.amount,
                 currency: order.currency,
@@ -81,56 +166,112 @@ paymentService.createOrder = async (req) => {
     }
 };
 
+/**
+ * Verify Wallet Top-Up Payment (Cashfree & Razorpay)
+ */
 paymentService.verifyPayment = async (req) => {
     let connection = null;
     try {
         const {
+            order_id,
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature,
             tournamentId
         } = req.body;
 
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-            return { status: false, error: "Missing required payment verification parameters." };
+        const effectiveOrderId = order_id || razorpay_order_id;
+        if (!effectiveOrderId && !razorpay_payment_id) {
+            return { status: false, error: "Missing required order ID or payment parameters." };
         }
 
-        // 1. Timing-Safe Cryptographic Signature Verification
-        const isValidSignature = verifyRazorpaySignature(
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-            process.env.RAZORPAY_KEY_SECRET
-        );
+        let verifiedAmount = 0;
+        let verifiedPaymentId = '';
+        let paymentMethodName = 'online';
 
-        if (!isValidSignature) {
-            return { status: false, error: "Payment verification failed: Invalid HMAC signature." };
+        // 1. CASHFREE VERIFICATION
+        if (effectiveOrderId && (effectiveOrderId.startsWith('cf_') || isCashfreeConfigured())) {
+            const baseUrl = getCashfreeBaseUrl();
+            const cfRes = await fetch(`${baseUrl}/orders/${effectiveOrderId}`, {
+                headers: getCashfreeHeaders()
+            });
+            const cfOrder = await cfRes.json();
+
+            if (!cfRes.ok || !cfOrder) {
+                return { status: false, error: "Order not found in Cashfree gateway." };
+            }
+
+            let isPaid = cfOrder.order_status === 'PAID';
+
+            // Check payments list if order status hasn't updated yet
+            if (!isPaid) {
+                const payRes = await fetch(`${baseUrl}/orders/${effectiveOrderId}/payments`, {
+                    headers: getCashfreeHeaders()
+                });
+                if (payRes.ok) {
+                    const payments = await payRes.json();
+                    if (Array.isArray(payments) && payments.some(p => p.payment_status === 'SUCCESS')) {
+                        isPaid = true;
+                        const successfulPay = payments.find(p => p.payment_status === 'SUCCESS');
+                        verifiedPaymentId = String(successfulPay.cf_payment_id || successfulPay.payment_id || effectiveOrderId);
+                        paymentMethodName = successfulPay.payment_group || 'upi';
+                    }
+                }
+            }
+
+            if (!isPaid) {
+                return { status: false, error: `Payment not completed. Order status: ${cfOrder.order_status}` };
+            }
+
+            verifiedAmount = parseFloat(cfOrder.order_amount);
+            if (!verifiedPaymentId) {
+                verifiedPaymentId = `cf_pay_${effectiveOrderId}`;
+            }
+
+        } else {
+            // 2. RAZORPAY VERIFICATION
+            if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+                return { status: false, error: "Missing required Razorpay verification parameters." };
+            }
+
+            const isValidSignature = verifyRazorpaySignature(
+                razorpay_order_id,
+                razorpay_payment_id,
+                razorpay_signature,
+                process.env.RAZORPAY_KEY_SECRET
+            );
+
+            if (!isValidSignature) {
+                return { status: false, error: "Payment verification failed: Invalid HMAC signature." };
+            }
+
+            const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+            if (!payment || payment.status !== 'captured') {
+                return { status: false, error: `Payment not captured by gateway. Status: ${payment?.status || 'unknown'}` };
+            }
+
+            verifiedAmount = parseFloat((payment.amount / 100).toFixed(2));
+            verifiedPaymentId = razorpay_payment_id;
+            paymentMethodName = payment.method || 'online';
         }
 
-        // 2. Anti-Replay Check: Ensure payment ID has not already been used or processed
+        // 3. Anti-Replay Check: Ensure payment ID or order ID has not already been used or processed
         const [existingPayments] = await db.promise().query(
-            "SELECT id FROM payments WHERE razorpay_payment_id = ?",
-            [razorpay_payment_id]
+            "SELECT id FROM payments WHERE razorpay_payment_id = ? OR razorpay_order_id = ?",
+            [verifiedPaymentId, effectiveOrderId]
         );
         if (existingPayments.length > 0) {
-            return { status: false, error: "This payment has already been verified and credited (duplicate transaction)." };
-        }
-
-        // 3. Server-to-Server Verification with Razorpay API (Tamper Proof)
-        const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
-
-        if (!payment || payment.status !== 'captured') {
-            return { status: false, error: `Payment not captured by gateway. Status: ${payment?.status || 'unknown'}` };
-        }
-
-        if (payment.order_id !== razorpay_order_id) {
-            return { status: false, error: "Payment order mismatch: order ID does not match transaction." };
-        }
-
-        // Trusted amount directly from Razorpay (paise to rupees)
-        const verifiedAmountInRupees = parseFloat((payment.amount / 100).toFixed(2));
-        if (verifiedAmountInRupees <= 0) {
-            return { status: false, error: "Invalid payment amount detected." };
+            return {
+                status: true,
+                data: {
+                    success: true,
+                    alreadyProcessed: true,
+                    message: "Payment already verified and credited to your wallet.",
+                    paymentId: verifiedPaymentId,
+                    orderId: effectiveOrderId,
+                    amount: verifiedAmount
+                }
+            };
         }
 
         // 4. Resolve authenticated user
@@ -150,23 +291,20 @@ paymentService.verifyPayment = async (req) => {
         connection = await db.promise().getConnection();
         await connection.beginTransaction();
 
-        // Insert into payments table (guaranteed unique by uq_razorpay_payment_id constraint)
         await connection.query(
             `INSERT INTO payments (
                 user_id, user_email, tournament_id, razorpay_order_id,
                 razorpay_payment_id, amount, currency, status,
                 payment_method, created_at, razorpay_created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, NOW(), ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, 'INR', 'completed', ?, NOW(), NOW())`,
             [
                 userId,
                 userEmail || null,
                 tournamentId || null,
-                razorpay_order_id,
-                razorpay_payment_id,
-                verifiedAmountInRupees,
-                payment.currency || 'INR',
-                payment.method || 'unknown',
-                new Date(payment.created_at * 1000)
+                effectiveOrderId,
+                verifiedPaymentId,
+                verifiedAmount,
+                paymentMethodName
             ]
         );
 
@@ -179,7 +317,7 @@ paymentService.verifyPayment = async (req) => {
         // Credit deposit_balance
         await connection.query(
             `UPDATE wallets SET deposit_balance = deposit_balance + ? WHERE user_id = ?`,
-            [verifiedAmountInRupees, userId]
+            [verifiedAmount, userId]
         );
 
         // Record ledger transaction
@@ -189,9 +327,9 @@ paymentService.verifyPayment = async (req) => {
             ) VALUES (?, 'deposit', 'deposit', ?, ?, ?, 'completed')`,
             [
                 userId,
-                verifiedAmountInRupees,
-                `Wallet Top-up via Razorpay (${(payment.method || 'online').toUpperCase()})`,
-                razorpay_payment_id
+                verifiedAmount,
+                `Wallet Top-up via Cashfree (${paymentMethodName.toUpperCase()})`,
+                verifiedPaymentId
             ]
         );
 
@@ -202,9 +340,9 @@ paymentService.verifyPayment = async (req) => {
             data: {
                 success: true,
                 message: 'Payment verified and credited to wallet successfully.',
-                paymentId: razorpay_payment_id,
-                orderId: razorpay_order_id,
-                amount: verifiedAmountInRupees
+                paymentId: verifiedPaymentId,
+                orderId: effectiveOrderId,
+                amount: verifiedAmount
             }
         };
 
@@ -221,35 +359,13 @@ paymentService.verifyPayment = async (req) => {
     }
 };
 
-paymentService.getPaymentStatus = async (req) => {
-    try {
-        const { paymentId } = req.params;
-
-        const payment = await razorpayInstance.payments.fetch(paymentId);
-
-        return {
-            status: true,
-            data: {
-                id: payment.id,
-                amount: payment.amount / 100, // Convert back to rupees
-                currency: payment.currency,
-                status: payment.status,
-                method: payment.method,
-                createdAt: new Date(payment.created_at * 1000)
-            }
-        };
-
-    } catch (error) {
-        console.error("Error in getPaymentStatus service:", error);
-        return { status: false, error: error.message };
-    }
-};
-
-// DIRECT TOURNAMENT CHECKOUT: Verify Razorpay payment and immediately book slot in tournament
+/**
+ * DIRECT TOURNAMENT CHECKOUT: Verify Cashfree/Razorpay payment and immediately book slot in tournament
+ */
 paymentService.verifyAndJoinTournament = async (req) => {
-    let connection = null;
     try {
         const {
+            order_id,
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature,
@@ -260,52 +376,23 @@ paymentService.verifyAndJoinTournament = async (req) => {
             joinMode = 'squad'
         } = req.body;
 
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-            return { status: false, message: "Missing Razorpay payment verification parameters." };
+        const effectiveOrderId = order_id || razorpay_order_id;
+
+        if (!effectiveOrderId && !razorpay_payment_id) {
+            return { status: false, message: "Missing order or payment verification parameters." };
         }
 
         if (!tournamentId) {
             return { status: false, message: "Tournament ID is required." };
         }
 
-        // 1. Timing-Safe Cryptographic Signature Verification
-        const isValidSignature = verifyRazorpaySignature(
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-            process.env.RAZORPAY_KEY_SECRET
-        );
-
-        if (!isValidSignature) {
-            return { status: false, message: "Payment verification failed: Invalid HMAC signature." };
-        }
-
-        // 2. Anti-Replay Check: Ensure this payment hasn't already been used
-        const [existing] = await db.promise().query(
-            "SELECT id FROM payments WHERE razorpay_payment_id = ?",
-            [razorpay_payment_id]
-        );
-        if (existing.length > 0) {
-            return { status: false, message: "This payment has already been claimed for another entry (duplicate payment ID)." };
-        }
-
-        // 3. Fetch payment from Razorpay to verify capture and status
-        const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
-        if (!payment || payment.status !== 'captured') {
-            return { status: false, message: `Payment not captured. Status: ${payment?.status || 'unknown'}` };
-        }
-
-        if (payment.order_id !== razorpay_order_id) {
-            return { status: false, message: "Payment order mismatch: order ID does not match transaction." };
-        }
-
-        // 4. Resolve authenticated user
+        // 1. Resolve authenticated user
         const userId = req.user?.id;
         if (!userId) {
             return { status: false, message: "Unauthorized user session. Please log in." };
         }
 
-        // 5. Strict Amount Verification against Tournament Entry Fee in DB
+        // 2. Fetch tournament details and verify entry fee requirement
         const [tRows] = await db.promise().query("SELECT * FROM tournaments WHERE id = ?", [tournamentId]);
         if (tRows.length === 0) {
             return { status: false, message: "Tournament not found." };
@@ -316,56 +403,132 @@ paymentService.verifyAndJoinTournament = async (req) => {
         const requiredFee = joinMode === 'random' && reqPlayers > 1
             ? parseFloat((fullEntry / reqPlayers).toFixed(2))
             : fullEntry;
-        const requiredPaise = Math.round(requiredFee * 100);
 
-        if (payment.amount < requiredPaise) {
+        let verifiedAmount = 0;
+        let verifiedPaymentId = '';
+        let paymentMethodName = 'upi';
+
+        // 3. CASHFREE DIRECT CHECKOUT VERIFICATION
+        if (effectiveOrderId && (effectiveOrderId.startsWith('cf_') || isCashfreeConfigured())) {
+            const baseUrl = getCashfreeBaseUrl();
+            const cfRes = await fetch(`${baseUrl}/orders/${effectiveOrderId}`, {
+                headers: getCashfreeHeaders()
+            });
+            const cfOrder = await cfRes.json();
+
+            if (!cfRes.ok || !cfOrder) {
+                return { status: false, message: "Order not found in Cashfree gateway." };
+            }
+
+            let isPaid = cfOrder.order_status === 'PAID';
+
+            // Check payments list if order status hasn't updated yet
+            if (!isPaid) {
+                const payRes = await fetch(`${baseUrl}/orders/${effectiveOrderId}/payments`, {
+                    headers: getCashfreeHeaders()
+                });
+                if (payRes.ok) {
+                    const payments = await payRes.json();
+                    if (Array.isArray(payments) && payments.some(p => p.payment_status === 'SUCCESS')) {
+                        isPaid = true;
+                        const successfulPay = payments.find(p => p.payment_status === 'SUCCESS');
+                        verifiedPaymentId = String(successfulPay.cf_payment_id || successfulPay.payment_id || effectiveOrderId);
+                        paymentMethodName = successfulPay.payment_group || 'upi';
+                    }
+                }
+            }
+
+            if (!isPaid) {
+                return { status: false, message: `Payment not completed. Status: ${cfOrder.order_status}` };
+            }
+
+            verifiedAmount = parseFloat(cfOrder.order_amount);
+            if (!verifiedPaymentId) {
+                verifiedPaymentId = `cf_pay_${effectiveOrderId}`;
+            }
+
+        } else {
+            // 4. RAZORPAY DIRECT CHECKOUT VERIFICATION
+            if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+                return { status: false, message: "Missing Razorpay payment verification parameters." };
+            }
+
+            const isValidSignature = verifyRazorpaySignature(
+                razorpay_order_id,
+                razorpay_payment_id,
+                razorpay_signature,
+                process.env.RAZORPAY_KEY_SECRET
+            );
+
+            if (!isValidSignature) {
+                return { status: false, message: "Payment verification failed: Invalid HMAC signature." };
+            }
+
+            const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+            if (!payment || payment.status !== 'captured') {
+                return { status: false, message: `Payment not captured. Status: ${payment?.status || 'unknown'}` };
+            }
+
+            verifiedAmount = parseFloat((payment.amount / 100).toFixed(2));
+            verifiedPaymentId = razorpay_payment_id;
+            paymentMethodName = payment.method || 'online';
+        }
+
+        // 5. Anti-Replay Check: Ensure this payment hasn't already been used to join
+        const [existing] = await db.promise().query(
+            "SELECT id FROM payments WHERE razorpay_payment_id = ? OR razorpay_order_id = ?",
+            [verifiedPaymentId, effectiveOrderId]
+        );
+        if (existing.length > 0) {
+            return { status: false, message: "This payment has already been claimed for another entry (duplicate transaction)." };
+        }
+
+        // 6. Strict Amount Verification
+        if (verifiedAmount < requiredFee) {
             return {
                 status: false,
-                message: `Payment amount ₹${(payment.amount / 100).toFixed(2)} is less than required tournament entry fee ₹${requiredFee.toFixed(2)}.`
+                message: `Payment amount ₹${verifiedAmount.toFixed(2)} is less than required tournament entry fee ₹${requiredFee.toFixed(2)}.`
             };
         }
 
-        // 6. Record payment to payments table first
-        const verifiedRupees = parseFloat((payment.amount / 100).toFixed(2));
+        // 7. Record payment in payments table
         await db.promise().query(
             `INSERT INTO payments (
                 user_id, user_email, tournament_id, razorpay_order_id,
                 razorpay_payment_id, amount, currency, status,
                 payment_method, created_at, razorpay_created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, NOW(), ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, 'INR', 'completed', ?, NOW(), NOW())`,
             [
                 userId,
                 req.user.email || null,
                 tournamentId,
-                razorpay_order_id,
-                razorpay_payment_id,
-                verifiedRupees,
-                payment.currency || 'INR',
-                payment.method || 'upi',
-                new Date(payment.created_at * 1000)
+                effectiveOrderId,
+                verifiedPaymentId,
+                verifiedAmount,
+                paymentMethodName
             ]
         );
 
-        // 7. Directly book the slot in the tournament
+        // 8. Directly book the slot in the tournament
         const tournamentService = require('./tournament-service');
         const joinResult = await tournamentService.joinTournament(tournamentId, userId, {
             teamName,
             slotNumber,
             players,
             joinMode,
-            paymentMethod: 'razorpay',
-            razorpayPaymentId: razorpay_payment_id
+            paymentMethod: 'cashfree',
+            razorpayPaymentId: verifiedPaymentId
         });
 
-        // 8. Failsafe Refund: If slot booking failed (e.g. tournament filled up in between), credit paid money to wallet
+        // 9. Failsafe Refund: If slot booking failed (e.g. tournament filled up in between), credit money to wallet
         if (!joinResult.status) {
-            console.warn(`[DIRECT CHECKOUT] Slot booking failed after payment ${razorpay_payment_id}. Refunding ₹${verifiedRupees} to wallet.`);
-            await walletService.addFunds(userId, verifiedRupees);
+            console.warn(`[DIRECT CHECKOUT] Slot booking failed after payment ${verifiedPaymentId}. Refunding ₹${verifiedAmount} to wallet.`);
+            await walletService.addFunds(userId, verifiedAmount);
             return {
                 status: false,
-                message: `${joinResult.message || 'Slot could not be booked.'} Your payment of ₹${verifiedRupees} has been safely credited to your wallet balance.`,
+                message: `${joinResult.message || 'Slot could not be booked.'} Your payment of ₹${verifiedAmount} has been safely credited to your wallet balance.`,
                 refundedToWallet: true,
-                walletBalanceCredited: verifiedRupees
+                walletBalanceCredited: verifiedAmount
             };
         }
 
@@ -373,6 +536,48 @@ paymentService.verifyAndJoinTournament = async (req) => {
     } catch (error) {
         console.error("Error in verifyAndJoinTournament:", error);
         return { status: false, message: error.message };
+    }
+};
+
+paymentService.getPaymentStatus = async (req) => {
+    try {
+        const { paymentId } = req.params;
+
+        if (paymentId.startsWith('cf_')) {
+            const baseUrl = getCashfreeBaseUrl();
+            const res = await fetch(`${baseUrl}/orders/${paymentId}`, {
+                headers: getCashfreeHeaders()
+            });
+            const cfOrder = await res.json();
+            return {
+                status: true,
+                data: {
+                    id: cfOrder.order_id,
+                    amount: cfOrder.order_amount,
+                    currency: cfOrder.order_currency,
+                    status: cfOrder.order_status,
+                    method: 'cashfree',
+                    createdAt: cfOrder.created_at
+                }
+            };
+        }
+
+        const payment = await razorpayInstance.payments.fetch(paymentId);
+        return {
+            status: true,
+            data: {
+                id: payment.id,
+                amount: payment.amount / 100,
+                currency: payment.currency,
+                status: payment.status,
+                method: payment.method,
+                createdAt: new Date(payment.created_at * 1000)
+            }
+        };
+
+    } catch (error) {
+        console.error("Error in getPaymentStatus service:", error);
+        return { status: false, error: error.message };
     }
 };
 

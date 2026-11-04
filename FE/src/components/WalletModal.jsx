@@ -144,10 +144,57 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
         throw new Error(orderData.message || 'Failed to initialize payment gateway');
       }
 
-      const rzpKey = orderData.key || 'rzp_test_WyypEVHeheZwJ5';
+      // 1. CASHFREE CHECKOUT MODAL
+      if (orderData.paymentSessionId && window.Cashfree) {
+        const cfMode = (orderData.cfEnv === 'PRODUCTION' || orderData.cfEnv === 'PROD') ? 'production' : 'sandbox';
+        const cashfree = window.Cashfree({ mode: cfMode });
 
+        cashfree.checkout({
+          paymentSessionId: orderData.paymentSessionId,
+          redirectTarget: "_modal",
+        }).then(async (result) => {
+          if (result.error) {
+            console.warn('Cashfree payment dismissed or error:', result.error);
+            showToast(result.error?.message || 'Payment closed or cancelled.', 'warning');
+            setActionLoading(false);
+            return;
+          }
+          if (result.redirect) {
+            return;
+          }
+
+          // Payment completed: verify with backend
+          try {
+            const verifyRes = await axios.post(
+              `${import.meta.env.VITE_API_URL || ""}/api/payment/verify`,
+              {
+                order_id: orderId,
+                amount: amt,
+                tournamentId: 0,
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (verifyRes.data.status) {
+              showToast(`₹${amt} added to wallet successfully via Cashfree!`, 'success', 'Top-up Successful');
+              await fetchProfileAndWallet();
+              setTimeout(() => setActiveTab('balances'), 1200);
+            } else {
+              showToast(verifyRes.data.message || 'Payment verification failed', 'error');
+            }
+          } catch (vErr) {
+            showToast(vErr.response?.data?.message || 'Payment verification failed', 'error');
+          } finally {
+            setActionLoading(false);
+          }
+        });
+        return;
+      }
+
+      // 2. FALLBACK TO RAZORPAY IF CASHFREE SESSION NOT AVAILABLE
+      const rzpKey = orderData.key || 'rzp_test_WyypEVHeheZwJ5';
       if (!window.Razorpay) {
-        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
+        throw new Error('Payment gateway SDK failed to load. Please check your internet connection.');
       }
 
       const options = {
@@ -202,7 +249,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
             );
 
             if (verifyRes.data.status) {
-              showToast(`₹${amt} added to wallet successfully via Razorpay!`, 'success', 'Top-up Successful');
+              showToast(`₹${amt} added to wallet successfully!`, 'success', 'Top-up Successful');
               await fetchProfileAndWallet();
               setTimeout(() => setActiveTab('balances'), 1200);
             } else {
@@ -569,7 +616,7 @@ export default function WalletModal({ isOpen, onClose, onBalanceUpdate }) {
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                       </svg>
-                      <span>{actionLoading ? 'Connecting to Razorpay...' : `Pay ₹${addAmount || 0} via UPI / Card (Razorpay)`}</span>
+                      <span>{actionLoading ? 'Connecting to Payment Gateway...' : `Pay ₹${addAmount || 0} via UPI / Card / NetBanking`}</span>
                     </button>
 
                     <div className="pt-2 flex items-center justify-center space-x-1.5 text-[10px] text-zinc-500 font-medium">
