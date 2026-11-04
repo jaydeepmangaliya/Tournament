@@ -311,17 +311,18 @@ export default function SquadRegisterModal({
             /* STANDARD 100% FREE REGISTRATION FORM */
             <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto overscroll-contain">
               {/* BOOYAH & REFERRAL PROMOTION BANNER */}
-              <div className="p-3 bg-gradient-to-r from-emerald-500/15 via-amber-500/15 to-emerald-500/15 border border-emerald-500/40 rounded-xl space-y-1">
+              <div className="p-3 bg-[#111118] border border-zinc-800 rounded-xl space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-emerald-400 flex items-center space-x-1.5">
-                    <span>⚡ 100% FREE ENTRY MATCH</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center space-x-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>100% Free Entry Match</span>
                   </span>
-                  <span className="text-xs font-mono font-black text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
-                    ENTRY: FREE
+                  <span className="text-[10px] font-mono font-black text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                    OPEN TO ALL
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-300 font-medium">
-                  🏆 Win Booyah to earn <strong className="text-emerald-400 font-bold">₹{Math.min(70, tournament.first_prize || (tournament.prize_pool > 70 ? 50 : (tournament.prize_pool || 50)))} Real Cash</strong> | 🎁 Refer friends to get <strong className="text-amber-400 font-bold">₹10 Cash</strong> in your wallet per friend!
+                  Win Booyah for <strong className="text-emerald-400 font-bold font-mono">₹{Math.min(70, tournament.first_prize || (tournament.prize_pool > 70 ? 50 : (tournament.prize_pool || 50)))} Cash</strong> <span className="text-zinc-600 mx-1">•</span> Refer squad mates & get <strong className="text-amber-300 font-bold font-mono">₹10 Cash</strong> in your wallet
                 </p>
               </div>
 

@@ -179,9 +179,86 @@ adminService.getAnalytics = async () => {
       weekPlayersGrowth: calcGrowth(playerCompare[0].this_week_players, playerCompare[0].last_week_players),
     };
 
+    // Website Visitor Analytics
+    let visitorStats = {
+      uniqueVisitors: 0,
+      todayUniqueVisitors: 0,
+      totalVisits: 0,
+      todayVisits: 0,
+      mobileVisits: 0,
+      desktopVisits: 0,
+      mobilePct: 0,
+      topPages: [],
+      recentVisitors: [],
+    };
+
+    try {
+      const [vCounts] = await db.promise().query(`
+        SELECT
+          COUNT(DISTINCT visitor_id) as unique_visitors,
+          COUNT(DISTINCT CASE WHEN created_at >= CURDATE() THEN visitor_id END) as today_unique_visitors,
+          COUNT(*) as total_visits,
+          SUM(CASE WHEN created_at >= CURDATE() THEN 1 ELSE 0 END) as today_visits,
+          SUM(CASE WHEN device_type = 'mobile' THEN 1 ELSE 0 END) as mobile_visits,
+          SUM(CASE WHEN device_type = 'desktop' THEN 1 ELSE 0 END) as desktop_visits
+        FROM site_visits
+      `);
+
+      const [topPages] = await db.promise().query(`
+        SELECT path, COUNT(*) as hit_count, COUNT(DISTINCT visitor_id) as unique_hits
+        FROM site_visits
+        WHERE path NOT LIKE '/admin%'
+        GROUP BY path
+        ORDER BY hit_count DESC
+        LIMIT 6
+      `);
+
+      const [recentVisitors] = await db.promise().query(`
+        SELECT 
+          sv.id, sv.visitor_id, sv.path, sv.device_type, sv.created_at, sv.ip_address,
+          u.name as user_name, u.email as user_email
+        FROM site_visits sv
+        LEFT JOIN users u ON u.id = sv.user_id
+        ORDER BY sv.created_at DESC
+        LIMIT 15
+      `);
+
+      const totalV = parseInt(vCounts[0]?.total_visits || 0);
+      const mobV = parseInt(vCounts[0]?.mobile_visits || 0);
+      const deskV = parseInt(vCounts[0]?.desktop_visits || 0);
+
+      visitorStats = {
+        uniqueVisitors: parseInt(vCounts[0]?.unique_visitors || 0),
+        todayUniqueVisitors: parseInt(vCounts[0]?.today_unique_visitors || 0),
+        totalVisits: totalV,
+        todayVisits: parseInt(vCounts[0]?.today_visits || 0),
+        mobileVisits: mobV,
+        desktopVisits: deskV,
+        mobilePct: totalV > 0 ? Math.round((mobV / totalV) * 100) : 0,
+        topPages: topPages.map((p) => ({
+          path: p.path,
+          hitCount: parseInt(p.hit_count || 0),
+          uniqueHits: parseInt(p.unique_hits || 0),
+        })),
+        recentVisitors: recentVisitors.map((r) => ({
+          id: r.id,
+          visitorId: r.visitor_id,
+          path: r.path,
+          deviceType: r.device_type,
+          createdAt: r.created_at,
+          ipAddress: r.ip_address,
+          userName: r.user_name || null,
+          userEmail: r.user_email || null,
+        })),
+      };
+    } catch (vErr) {
+      console.warn('site_visits query warning:', vErr.message);
+    }
+
     return {
       status: true,
       data: {
+        visitors: visitorStats,
         tournaments: tCounts[0],
         users: userCounts[0],
         finances: {

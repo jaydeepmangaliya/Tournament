@@ -233,6 +233,21 @@ CREATE TABLE IF NOT EXISTS `push_subscriptions` (
   CONSTRAINT `fk_push_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Table: site_visits (Visitor & Website Traffic Intelligence)
+CREATE TABLE IF NOT EXISTS `site_visits` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `visitor_id` varchar(64) NOT NULL,
+  `path` varchar(255) DEFAULT '/',
+  `device_type` varchar(20) DEFAULT 'desktop',
+  `ip_address` varchar(64) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `user_id` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_visitor_id` (`visitor_id`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- Seed: Default Games
 INSERT INTO `games` (`id`, `name`, `slug`, `is_active`) VALUES
 (1, 'Free Fire', 'free-fire', 1),

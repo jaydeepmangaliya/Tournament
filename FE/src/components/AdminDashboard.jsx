@@ -1045,8 +1045,8 @@ export default function AdminDashboard() {
     },
     {
       id: 'analytics',
-      label: '5. Analytics & Revenue',
-      count: 'LIVE',
+      label: '5. Analytics & Traffic',
+      count: analytics?.visitors ? `${analytics.visitors.uniqueVisitors || 0} VISITS` : 'LIVE',
       icon: (
         <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="18" y1="20" x2="18" y2="10" />
@@ -1307,13 +1307,25 @@ export default function AdminDashboard() {
             })}
           </div>
 
-          {/* Live Financial Metrics Card in Sidebar */}
+          {/* Live Financial & Traffic Metrics Card in Sidebar */}
           <div className="pt-2">
             <div className="p-3.5 bg-[#101016] rounded-2xl border border-zinc-800 space-y-2">
               <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider block">
-                Platform Finances (Live)
+                Platform Intelligence (Live)
               </span>
               <div className="flex justify-between items-center text-xs font-mono">
+                <span className="text-zinc-400">Total Visitors:</span>
+                <span className="text-emerald-400 font-bold">
+                  {analytics?.visitors?.uniqueVisitors || 0}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-mono">
+                <span className="text-zinc-400">Today's Visitors:</span>
+                <span className="text-white font-bold">
+                  {analytics?.visitors?.todayUniqueVisitors || 0}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-mono pt-1.5 border-t border-zinc-800/80">
                 <span className="text-zinc-400">Total Fees:</span>
                 <span className="text-white font-bold">
                   ₹{analytics?.finances?.entryCollected?.toLocaleString('en-IN') || 0}
@@ -1385,6 +1397,17 @@ export default function AdminDashboard() {
 
           {/* Top Tickers & Refresh */}
           <div className="flex items-center space-x-3">
+            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 flex items-center space-x-2 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[10px] uppercase font-bold text-emerald-300">Website Visitors:</span>
+              <span className="text-xs font-mono font-black text-white">
+                {analytics?.visitors?.uniqueVisitors || 0}
+              </span>
+              <span className="text-[10px] text-zinc-400 font-mono">
+                ({analytics?.visitors?.todayUniqueVisitors || 0} today)
+              </span>
+            </div>
+
             <div className="px-3 py-1.5 rounded-xl bg-[#101016] border border-zinc-800 flex items-center space-x-2">
               <span className="text-[10px] uppercase font-bold text-zinc-500">Total Fees:</span>
               <span className="text-xs font-mono font-bold text-white">
@@ -2072,6 +2095,155 @@ export default function AdminDashboard() {
                   </svg>
                   <span>Sync Metrics</span>
                 </button>
+              </div>
+            </div>
+
+            {/* 0. WEBSITE VISITOR COUNT & TRAFFIC INTELLIGENCE */}
+            <div className="bg-[#0c0c12] border border-zinc-800 rounded-3xl p-5 sm:p-6 space-y-6 shadow-xl relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0">
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-base font-black text-white">Website Visitor Intelligence</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono font-black flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>LIVE TRACKER</span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Real-time count of people visiting your platform, active devices, and top browsed pages.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <div className="px-3 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-zinc-300">
+                    Auto-debounced (excludes admin)
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Visitor Metric Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* Total Unique Visitors */}
+                <div className="bg-[#121218] border border-zinc-800/90 rounded-2xl p-4 space-y-1.5 shadow-sm">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
+                    Total Unique Visitors
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                    {analytics?.visitors?.uniqueVisitors || 0}
+                  </div>
+                  <p className="text-[10px] text-zinc-500">Unique devices / people</p>
+                </div>
+
+                {/* Today's Visitors */}
+                <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-4 space-y-1.5 shadow-sm">
+                  <span className="text-[10px] uppercase font-bold text-emerald-300 block tracking-wider flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Today's Visitors</span>
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
+                    {analytics?.visitors?.todayUniqueVisitors || 0}
+                  </div>
+                  <p className="text-[10px] text-emerald-500/80">Visited today</p>
+                </div>
+
+                {/* Total Page Views */}
+                <div className="bg-[#121218] border border-zinc-800/90 rounded-2xl p-4 space-y-1.5 shadow-sm">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
+                    Total Page Views
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-zinc-200 font-mono">
+                    {analytics?.visitors?.totalVisits || 0}
+                  </div>
+                  <p className="text-[10px] text-zinc-500">{analytics?.visitors?.todayVisits || 0} hits today</p>
+                </div>
+
+                {/* Device Breakdown */}
+                <div className="bg-[#121218] border border-zinc-800/90 rounded-2xl p-4 space-y-1.5 shadow-sm">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
+                    Mobile vs Desktop
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
+                    {analytics?.visitors?.mobilePct || 0}%
+                  </div>
+                  <p className="text-[10px] text-zinc-500 font-mono">
+                    {analytics?.visitors?.mobileVisits || 0} Mob • {analytics?.visitors?.desktopVisits || 0} Desk
+                  </p>
+                </div>
+              </div>
+
+              {/* Top Visited Pages & Recent Visitors Stream Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                {/* Top Visited Pages */}
+                <div className="bg-[#121218] border border-zinc-800/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+                      Most Visited Pages
+                    </h4>
+                    <span className="text-[10px] text-zinc-500 font-mono">Hit Counts</span>
+                  </div>
+                  <div className="space-y-2">
+                    {analytics?.visitors?.topPages && analytics.visitors.topPages.length > 0 ? (
+                      analytics.visitors.topPages.map((page, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/60 border border-zinc-800/60 text-xs font-mono">
+                          <span className="text-zinc-300 truncate max-w-[220px] font-bold">
+                            {page.path === '/' ? '/ (Home)' : page.path}
+                          </span>
+                          <div className="flex items-center space-x-2 flex-shrink-0">
+                            <span className="text-emerald-400 font-bold">{page.hitCount} views</span>
+                            <span className="text-zinc-500">({page.uniqueHits} users)</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-zinc-500 py-3 text-center">No visitor page hits recorded yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Recent Visitor Activity Stream */}
+                <div className="bg-[#121218] border border-zinc-800/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+                      Live Visitor Activity Log
+                    </h4>
+                    <span className="text-[10px] text-emerald-400 font-mono flex items-center space-x-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Real-time</span>
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    {analytics?.visitors?.recentVisitors && analytics.visitors.recentVisitors.length > 0 ? (
+                      analytics.visitors.recentVisitors.map((v) => (
+                        <div key={v.id} className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/60 border border-zinc-800/60 text-xs">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase font-mono">
+                              {v.deviceType === 'mobile' ? '📱 MOB' : '💻 PC'}
+                            </span>
+                            <span className="text-white font-mono truncate font-bold">
+                              {v.userName || (v.visitorId ? v.visitorId.substring(0, 14) : 'Guest')}
+                            </span>
+                            <span className="text-zinc-500 font-mono truncate">
+                              → {v.path === '/' ? '/home' : v.path}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-zinc-500 font-mono flex-shrink-0 ml-2">
+                            {new Date(v.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-zinc-500 py-3 text-center">No live visitor activity yet.</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

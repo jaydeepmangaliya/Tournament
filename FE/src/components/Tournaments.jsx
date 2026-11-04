@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SquadRegisterModal from './SquadRegisterModal';
 import WalletModal from './WalletModal';
@@ -172,28 +172,54 @@ export default function TournamentsPage() {
           <LiveActivityTicker />
         </div>
 
-        {/* Free Entry & Referral Promotion Banner */}
-        <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-amber-500/15 to-emerald-500/10 border border-emerald-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left shadow-lg">
-          <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-black text-xl flex-shrink-0">
-              ⚡
-            </div>
-            <div>
-              <div className="flex items-center justify-center sm:justify-start space-x-2">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">100% Free Entry Matches</span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[9px] font-black uppercase">Open For All</span>
+        {/* Sleek Professional Competitive Arena Banner */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0d0f17] via-[#0a0a0f] to-[#0d0f17] border border-zinc-800 p-4 sm:p-5 shadow-2xl">
+          {/* Subtle Ambient Radial Highlights */}
+          <div className="absolute -left-12 -top-12 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+            <div className="flex items-center space-x-4">
+              {/* Refined Esports Trophy Badge */}
+              <div className="w-12 h-12 rounded-xl bg-zinc-900/90 border border-zinc-700/80 flex items-center justify-center text-emerald-400 flex-shrink-0 shadow-inner">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                  <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                  <path d="M4 22h16" />
+                  <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+                  <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+                  <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                </svg>
               </div>
-              <p className="text-xs text-zinc-300 font-medium mt-0.5">
-                🔥 Win Booyah & Earn <strong className="text-emerald-400 font-bold">₹50 Cash Winnings</strong> | 🎁 Refer a friend & get <strong className="text-amber-400 font-bold">₹10 Cash</strong> instantly in your wallet!
-              </p>
+
+              <div>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                  <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>100% Free Entry Matches</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-zinc-800/90 border border-zinc-700 text-[10px] font-bold uppercase tracking-wider text-zinc-300">
+                    Open To All Players
+                  </span>
+                </div>
+
+                <p className="text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
+                  Win Booyah for <strong className="text-emerald-400 font-bold font-mono">₹50 Cash</strong> <span className="text-zinc-600 mx-1.5">•</span> Refer squad mates & get <strong className="text-amber-300 font-bold font-mono">₹10 Cash</strong> instantly in your wallet
+                </p>
+              </div>
             </div>
+
+            <Link
+              to="/refer-and-earn"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-black font-black text-xs uppercase tracking-wider transition-all duration-200 shadow-lg shadow-white/10 flex-shrink-0 cursor-pointer"
+            >
+              <span>Invite & Earn ₹10</span>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </Link>
           </div>
-          <a
-            href="/refer"
-            className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-black font-black text-xs uppercase tracking-wider rounded-xl transition flex-shrink-0 shadow-md"
-          >
-            Invite & Earn ₹10 ➔
-          </a>
         </div>
 
         {/* Filters Bar */}

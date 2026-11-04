@@ -40,6 +40,36 @@ const App = () => {
     document.title = titles[location.pathname] || 'LocalEsport - Competitive Gaming Platform';
   }, [location.pathname]);
 
+  // Automatic Website Visitor Counter & Traffic Intelligence
+  React.useEffect(() => {
+    if (isAdminRoute) return;
+
+    try {
+      let visitorId = localStorage.getItem('le_visitor_id');
+      if (!visitorId) {
+        visitorId = 'v_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('le_visitor_id', visitorId);
+      }
+
+      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+
+      fetch(`${apiUrl}/api/track-visit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visitorId,
+          path: location.pathname,
+          deviceType: isMobile ? 'mobile' : 'desktop',
+          userId: user?.id || null,
+        }),
+      }).catch(() => {});
+    } catch (e) {
+      // Non-blocking
+    }
+  }, [location.pathname, isAdminRoute]);
+
   return (
     <div className="bg-[#0a0a0e] min-h-screen text-white">
       {!isAdminRoute && <WinterEffect />}

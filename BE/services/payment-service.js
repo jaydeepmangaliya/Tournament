@@ -715,7 +715,7 @@ paymentService.directUpiJoin = async (req) => {
 
         return {
             status: true,
-            message: `Payment verified! You are confirmed in Slot #${slotNumber}!`,
+            message: `Registration confirmed! You are locked in Slot #${slotNumber}!`,
             data: {
                 slot: slotNumber,
                 teamName: teamName,
