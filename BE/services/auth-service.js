@@ -218,10 +218,15 @@ authService.login = async (body) => {
     );
 
     if (rows.length === 0) {
-      return await authService.register(body);
+      return { status: false, message: "No account found with this email. Please register first." };
     }
 
     const user = rows[0];
+
+    if (user.status === 'banned') {
+      return { status: false, message: "Your account has been suspended. Please contact support." };
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return { status: false, message: "Invalid email or password." };

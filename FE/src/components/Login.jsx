@@ -371,8 +371,20 @@ const Login = () => {
                 )}
 
                 {error && (
-                  <div className="p-3 bg-red-950/40 border border-red-700 text-red-300 rounded-xl text-xs font-semibold">
-                    {error}
+                  <div className="p-3 bg-red-950/40 border border-red-700 text-red-300 rounded-xl text-xs font-semibold space-y-1.5">
+                    <div>{error}</div>
+                    {!isRegisterMode && error.toLowerCase().includes('register') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsRegisterMode(true);
+                          setError('');
+                        }}
+                        className="text-white underline hover:text-zinc-200 font-bold block cursor-pointer"
+                      >
+                        Click here to create a new profile →
+                      </button>
+                    )}
                   </div>
                 )}
 
