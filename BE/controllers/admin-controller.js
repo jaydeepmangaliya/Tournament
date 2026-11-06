@@ -248,3 +248,16 @@ exports.testEmailAlert = async (req, res) => {
     return res.status(500).json({ status: false, message: error.message });
   }
 };
+
+exports.impersonateUser = async (req, res) => {
+  try {
+    const result = await adminService.impersonateUser(req.params.id);
+    if (!result.status) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin impersonateUser error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};

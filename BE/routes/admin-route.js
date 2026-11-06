@@ -60,6 +60,7 @@ module.exports = (app) => {
   router.put("/users/:id", requireAdmin, adminController.updateUser);
   router.delete("/users/:id", requireAdmin, adminController.deleteUser);
   router.post("/users/:id/ban", requireAdmin, adminController.toggleUserBan);
+  router.post("/users/:id/impersonate", requireAdmin, adminController.impersonateUser);
 
   // 5. Diagnostics & System Alerts
   router.post("/test-email", requireAdmin, adminController.testEmailAlert);

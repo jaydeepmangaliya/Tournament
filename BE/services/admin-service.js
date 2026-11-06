@@ -869,5 +869,72 @@ adminService.updateUser = async (userId, data) => {
   }
 };
 
+// 10. Admin: Impersonate / Login As Player (Generates valid session without knowing or changing player password)
+adminService.impersonateUser = async (targetUserId) => {
+  try {
+    const { generateJWT } = require("../helpers/generateJWT");
+
+    const [rows] = await db.promise().query(
+      `SELECT u.*, a.affiliate_code, a.commission_value, w.deposit_balance, w.winning_balance, w.referral_balance
+       FROM users u
+       LEFT JOIN affiliates a ON a.user_id = u.id
+       LEFT JOIN wallets w ON w.user_id = u.id
+       WHERE u.id = ?`,
+      [targetUserId]
+    );
+
+    if (rows.length === 0) {
+      return { status: false, message: "Target user not found." };
+    }
+
+    const user = rows[0];
+
+    // Ensure wallet exists
+    if (user.deposit_balance === null) {
+      await db.promise().query(
+        `INSERT IGNORE INTO wallets (user_id, deposit_balance, winning_balance, referral_balance) VALUES (?, 0.00, 0.00, 0.00)`,
+        [user.id]
+      );
+    }
+
+    const token = await generateJWT({ id: user.id, email: user.email, role: user.role });
+
+    const depBal = parseFloat(user.deposit_balance || 0);
+    const winBal = parseFloat(user.winning_balance || 0);
+    const refBal = parseFloat(user.referral_balance || 0);
+    const totBal = (depBal + winBal + refBal).toFixed(2);
+
+    return {
+      status: true,
+      message: `Impersonation session created for ${user.name || user.email}`,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        referral_code: user.referral_code,
+        affiliate_code: user.affiliate_code,
+        code: user.role === 'affiliate' ? (user.affiliate_code || user.referral_code) : user.referral_code,
+        deposit_balance: depBal,
+        winning_balance: winBal,
+        referral_balance: refBal,
+        total_balance: totBal,
+        state: user.state || null,
+        is_18_plus: user.is_18_plus !== undefined ? user.is_18_plus : 1,
+        kyc_status: user.kyc_status || 'not_submitted',
+        pan_number: user.pan_number || null,
+        pan_name: user.pan_name || null,
+        aadhaar_last4: user.aadhaar_last4 || null,
+        kyc_rejection_reason: user.kyc_rejection_reason || null,
+      },
+    };
+  } catch (error) {
+    console.error("impersonateUser error:", error);
+    throw error;
+  }
+};
+
 module.exports = adminService;
 

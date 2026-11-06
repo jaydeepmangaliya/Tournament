@@ -532,6 +532,35 @@ export default function AdminDashboard() {
     }
   };
 
+  // ADMIN IMPERSONATION: LOGIN AS PLAYER WITHOUT PASSWORD
+  const handleImpersonateUser = async (u) => {
+    try {
+      showToast(`Generating session for ${u.name || u.email}...`, 'info', 'Impersonating Player');
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/users/${u.id}/impersonate`,
+        {},
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+
+      if (res.data.status && res.data.token) {
+        // Store player token and profile in localStorage session
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+
+        showToast(`Successfully logged in as ${u.name}! Opening website...`, 'success', 'Session Active');
+
+        // Open player platform in a new tab or window
+        setTimeout(() => {
+          window.open('/tournaments', '_blank');
+        }, 600);
+      } else {
+        showToast(res.data.message || 'Failed to login as user.', 'error');
+      }
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Error generating player session.', 'error');
+    }
+  };
+
   // OPEN ADD TEAM / PLAYER MODAL
   const handleOpenAddTeam = (t) => {
     // Determine first open slot
@@ -2854,6 +2883,20 @@ export default function AdminDashboard() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end space-x-1.5 font-sans">
+                            {u.role !== 'admin' && (
+                              <button
+                                onClick={() => handleImpersonateUser(u)}
+                                title={`Login directly as ${u.name || u.email} without password`}
+                                className="px-2 py-1 bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-300 text-[10px] font-bold rounded flex items-center space-x-1 transition cursor-pointer shadow-sm"
+                              >
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                                  <polyline points="10 17 15 12 10 7" />
+                                  <line x1="15" y1="12" x2="3" y2="12" />
+                                </svg>
+                                <span>Login As</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenEditUser(u)}
                               className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-bold rounded transition"

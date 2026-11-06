@@ -204,3 +204,4 @@ mailService.sendMatchReadyAlert = async (tournament) => {
 };
 
 module.exports = mailService;
+
