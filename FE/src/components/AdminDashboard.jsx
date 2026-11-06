@@ -510,6 +510,28 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleTestEmailAlert = async () => {
+    try {
+      showToast('Dispatching test alert to brandstore111111@gmail.com...', 'info', 'Email Alert');
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL || ""}/api/admin/test-email`,
+        {},
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      if (res.data.status) {
+        showToast('Live test email sent successfully to brandstore111111@gmail.com!', 'success', 'Mail Delivered');
+      } else {
+        showToast(
+          res.data.message || 'Alert logged to server. Please set SMTP_USER & SMTP_PASS in BE/.env for live delivery.',
+          'warning',
+          'Notice'
+        );
+      }
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Error triggering test email.', 'error');
+    }
+  };
+
   // OPEN ADD TEAM / PLAYER MODAL
   const handleOpenAddTeam = (t) => {
     // Determine first open slot
@@ -1421,6 +1443,18 @@ export default function AdminDashboard() {
                 ₹{analytics?.finances?.netProfit?.toLocaleString('en-IN') || 0}
               </span>
             </div>
+
+            <button
+              onClick={handleTestEmailAlert}
+              title="Send Test Email Alert to brandstore111111@gmail.com"
+              className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition flex items-center space-x-1.5 text-xs font-bold"
+            >
+              <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+              <span>Test Mail Alert</span>
+            </button>
 
             <button
               onClick={loadAllAdminData}

@@ -227,3 +227,24 @@ exports.updateUser = async (req, res) => {
     return res.status(500).json({ status: false, message: error.message });
   }
 };
+
+exports.testEmailAlert = async (req, res) => {
+  try {
+    const mailService = require('../services/mail-service');
+    const result = await mailService.sendMatchReadyAlert({
+      id: 999,
+      title: 'Free Fire 1v1 Solo Test Duel (Diagnostic Test)',
+      game_name: 'Free Fire',
+      format: '1v1',
+      prize_pool: 50,
+      map_name: 'Bermuda',
+      total_teams: 2,
+      total_slots: 2,
+      match_start_at: new Date()
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error("Admin testEmailAlert error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};

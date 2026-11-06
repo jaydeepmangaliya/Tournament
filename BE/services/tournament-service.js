@@ -531,6 +531,8 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
     const maxCapacity = tournament.total_teams * requiredPlayers;
 
     if (totalParticipants >= maxCapacity) {
+      const wasOpen = tournament.status === 'open';
+
       await connection.query(
         `UPDATE tournaments SET status = 'ready' WHERE id = ?`,
         [tournamentId]
@@ -543,6 +545,26 @@ tournamentService.joinTournament = async (tournamentId, userId, body) => {
         tournament,
         connection
       );
+
+      // Trigger Email Notification to Admin if match just became full and ready to play
+      if (wasOpen) {
+        try {
+          const mailService = require('./mail-service');
+          mailService.sendMatchReadyAlert({
+            id: tournamentId,
+            title: tournament.title,
+            format: tournament.format,
+            game_name: tournament.game_name || 'Free Fire',
+            prize_pool: tournament.prize_pool,
+            total_teams: tournament.total_teams,
+            total_slots: maxCapacity,
+            map_name: tournament.map_name,
+            match_start_at: tournament.match_start_at
+          }).catch(err => console.error('[MAIL ALERT ERROR]', err.message));
+        } catch (mErr) {
+          console.error('[MAIL ALERT ERROR]', mErr.message);
+        }
+      }
     }
 
     // J. ONBOARDING & REFERRAL COMMISSION TRIGGER
@@ -1380,6 +1402,7 @@ tournamentService.addTeamAdmin = async (tournamentId, body) => {
       [tournamentId]
     );
     if (teamCount[0].cnt >= tournament.total_teams) {
+      const wasOpen = tournament.status === 'open';
       await connection.query(`UPDATE tournaments SET status = 'ready' WHERE id = ?`, [tournamentId]);
       // Trigger Auto-Lobby Rebirth if this match just got full
       await tournamentService.ensureOpenLobbyExists(
@@ -1389,6 +1412,26 @@ tournamentService.addTeamAdmin = async (tournamentId, body) => {
         tournament,
         connection
       );
+
+      // Trigger Email Notification to Admin if match just became full and ready to play
+      if (wasOpen) {
+        try {
+          const mailService = require('./mail-service');
+          mailService.sendMatchReadyAlert({
+            id: tournamentId,
+            title: tournament.title,
+            format: tournament.format,
+            game_name: tournament.game_name || 'Free Fire',
+            prize_pool: tournament.prize_pool,
+            total_teams: tournament.total_teams,
+            total_slots: tournament.total_slots || (tournament.total_teams * (tournament.players_per_team || 1)),
+            map_name: tournament.map_name,
+            match_start_at: tournament.match_start_at
+          }).catch(err => console.error('[MAIL ALERT ERROR]', err.message));
+        } catch (mErr) {
+          console.error('[MAIL ALERT ERROR]', mErr.message);
+        }
+      }
     }
 
     await connection.commit();

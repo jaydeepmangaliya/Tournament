@@ -61,5 +61,8 @@ module.exports = (app) => {
   router.delete("/users/:id", requireAdmin, adminController.deleteUser);
   router.post("/users/:id/ban", requireAdmin, adminController.toggleUserBan);
 
+  // 5. Diagnostics & System Alerts
+  router.post("/test-email", requireAdmin, adminController.testEmailAlert);
+
   app.use("/api/admin", router);
 };
