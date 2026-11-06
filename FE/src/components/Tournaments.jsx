@@ -358,7 +358,7 @@ export default function TournamentsPage() {
                       <div>
                         <span className="text-[10px] uppercase font-bold text-zinc-500 block tracking-wider">Booyah Prize</span>
                         <span className="text-sm font-black text-amber-300">
-                          ₹{Math.min(70, t.first_prize || (t.prize_pool > 70 ? 50 : (t.prize_pool || 50)))}
+                          ₹{t.first_prize !== undefined && t.first_prize !== null ? t.first_prize : (t.prize_pool || 0)}
                         </span>
                       </div>
                       <div>
@@ -366,7 +366,7 @@ export default function TournamentsPage() {
                           {t.second_prize > 0 ? '2nd Prize' : 'Total Pool'}
                         </span>
                         <span className="text-sm font-black text-silver">
-                          ₹{t.second_prize > 0 ? Math.min(20, t.second_prize) : Math.min(70, t.prize_pool > 70 ? 70 : (t.prize_pool || 70))}
+                          ₹{t.second_prize > 0 ? t.second_prize : (t.prize_pool || 0)}
                         </span>
                       </div>
                     </div>

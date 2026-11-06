@@ -322,7 +322,7 @@ export default function SquadRegisterModal({
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-300 font-medium">
-                  Win Booyah for <strong className="text-emerald-400 font-bold font-mono">₹{Math.min(70, tournament.first_prize || (tournament.prize_pool > 70 ? 50 : (tournament.prize_pool || 50)))} Cash</strong> <span className="text-zinc-600 mx-1">•</span> Refer squad mates & get <strong className="text-amber-300 font-bold font-mono">₹10 Cash</strong> in your wallet
+                  Win Booyah for <strong className="text-emerald-400 font-bold font-mono">₹{tournament.first_prize !== undefined && tournament.first_prize !== null ? tournament.first_prize : (tournament.prize_pool || 0)} Cash</strong> <span className="text-zinc-600 mx-1">•</span> Refer squad mates & get <strong className="text-amber-300 font-bold font-mono">₹10 Cash</strong> in your wallet
                 </p>
               </div>
 
@@ -331,7 +331,7 @@ export default function SquadRegisterModal({
                 <div className="bg-[#121218] p-2.5 rounded-xl border border-zinc-800">
                   <span className="text-[10px] uppercase font-bold text-zinc-500 block">Booyah Winner Prize</span>
                   <span className="text-sm sm:text-base font-black text-amber-300 font-mono">
-                    ₹{Math.min(70, tournament.first_prize || (tournament.prize_pool > 70 ? 50 : (tournament.prize_pool || 50)))}.00
+                    ₹{tournament.first_prize !== undefined && tournament.first_prize !== null ? tournament.first_prize : (tournament.prize_pool || 0)}.00
                   </span>
                 </div>
                 <div className="bg-[#121218] p-2.5 rounded-xl border border-zinc-800">

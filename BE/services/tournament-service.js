@@ -76,25 +76,24 @@ tournamentService.getTournaments = async (filters = {}, userId = null) => {
         ? t.booked_slots_str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
         : [];
 
-      // Calibrate Free Entry & Prize Cap <= ₹70 for all matches
+      // Use admin-configured prizes directly from database (cap at max 70 for legacy entries)
       let prizePool = parseFloat(t.prize_pool || 0);
       let firstPrize = parseFloat(t.first_prize || 0);
       let secondPrize = parseFloat(t.second_prize || 0);
-      let thirdPrize = 0.00;
+      let thirdPrize = parseFloat(t.third_prize || 0);
 
-      if (t.format === '1v1') {
-        prizePool = 50.00;
-        firstPrize = 50.00;
-        secondPrize = 0.00;
-      } else if (t.format === '2v2' || t.format === '4v4') {
+      // Only cap if legacy entry exceeds ₹70
+      if (prizePool > 70.00) {
         prizePool = 70.00;
-        firstPrize = 70.00;
-        secondPrize = 0.00;
-      } else {
-        // Battle Royale (Solo, Duo, Squad): Max ₹70 total (Booyah = ₹50, 2nd Place = ₹20)
-        prizePool = 70.00;
-        firstPrize = 50.00;
-        secondPrize = 20.00;
+      }
+      if (firstPrize > prizePool) {
+        firstPrize = prizePool;
+      }
+      if (firstPrize <= 0 && prizePool > 0) {
+        firstPrize = prizePool;
+      }
+      if (firstPrize + secondPrize > prizePool) {
+        secondPrize = Math.max(0, prizePool - firstPrize);
       }
 
       return {
@@ -179,23 +178,23 @@ tournamentService.getTournamentById = async (tournamentId, userId = null) => {
       ) || null;
     }
 
-    // Calibrate Free Entry & Prize Cap <= ₹70
+    // Use admin-configured prizes directly from database (cap at max 70 for legacy entries)
     let prizePool = parseFloat(tournament.prize_pool || 0);
     let firstPrize = parseFloat(tournament.first_prize || 0);
     let secondPrize = parseFloat(tournament.second_prize || 0);
+    let thirdPrize = parseFloat(tournament.third_prize || 0);
 
-    if (tournament.format === '1v1') {
-      prizePool = 50.00;
-      firstPrize = 50.00;
-      secondPrize = 0.00;
-    } else if (tournament.format === '2v2' || tournament.format === '4v4') {
+    if (prizePool > 70.00) {
       prizePool = 70.00;
-      firstPrize = 70.00;
-      secondPrize = 0.00;
-    } else {
-      prizePool = 70.00;
-      firstPrize = 50.00;
-      secondPrize = 20.00;
+    }
+    if (firstPrize > prizePool) {
+      firstPrize = prizePool;
+    }
+    if (firstPrize <= 0 && prizePool > 0) {
+      firstPrize = prizePool;
+    }
+    if (firstPrize + secondPrize > prizePool) {
+      secondPrize = Math.max(0, prizePool - firstPrize);
     }
 
     return {
